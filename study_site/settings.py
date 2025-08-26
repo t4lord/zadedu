@@ -119,3 +119,6 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# احفظ اختيار الفصل لمدة سنة (بالثواني)
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 365
+SESSION_SAVE_EVERY_REQUEST = False

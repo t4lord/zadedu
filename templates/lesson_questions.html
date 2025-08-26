@@ -1,0 +1,169 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ lesson.title }} — أسئلة الدرس</title>
+  <style>
+    body{font-family:system-ui,Tahoma; margin:2rem;}
+    .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
+    .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer}
+    .btn:hover{background:#f7f7f7}
+    .card{border:1px solid #ddd; border-radius:12px; padding:1rem; margin-top:1rem}
+    .q{padding:1rem; border:1px solid #eee; border-radius:10px; margin-bottom:1rem}
+    .q h3{margin:0 0 .4rem 0; font-size:1.05rem}
+    .meta{color:#666; font-size:.85rem; margin-bottom:.25rem}
+    .choices{list-style:none; padding:0; margin:.5rem 0 0 0}
+    .choices li{padding:.4rem .6rem; border-radius:8px; border:1px solid #eee; margin:.35rem 0; display:flex; gap:.5rem; align-items:center}
+    .choices input{accent-color:#0a7}
+    /* تلوين بعد التصحيح */
+    .correct{border-color:#cfe9cf; background:#f6fff6}
+    .wrong{border-color:#f1c7c7; background:#fff7f7}
+    .mark{font-weight:bold; margin-inline-start:auto}
+    /* شريط النتيجة */
+    .result{background:#f8f9ff; border:1px solid #e5e8ff; padding:.6rem .8rem; border-radius:10px; margin-top:1rem}
+    /* زر التصحيح العائم */
+    .fab{
+      position: fixed; left: 1.2rem; bottom: 1.2rem;
+      width: 52px; height: 52px; border-radius: 50%;
+      display:flex; align-items:center; justify-content:center;
+      border: 1px solid #ccc; background:#fff; text-decoration:none; font-size:1.3rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+      cursor:pointer;
+    }
+    .fab:hover{background:#f7f7f7}
+    .muted{color:#777}
+    .row{display:flex; gap:.6rem; flex-wrap:wrap}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      <span class="badge">المادة: {{ subject.name }}</span>
+      <span class="badge">الدرس: {{ lesson.title }}</span>
+    </div>
+    <div class="row">
+  <a class="btn" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">⬅ رجوع لعرض الدرس</a>
+
+  <form method="get" class="row" style="align-items:center; gap:.4rem">
+    <label class="muted">نطاق الأسئلة</label>
+    <select name="section" class="inp" onchange="this.form.submit()">
+      <option value="FULL"  {% if section == 'FULL' %}selected{% endif %}>كامل القسم</option>
+      <option value="FIRST" {% if section == 'FIRST' %}selected{% endif %}>القسم الأول</option>
+      <option value="SECOND"{% if section == 'SECOND' %}selected{% endif %}>القسم الثاني</option>
+    </select>
+    <noscript><button class="btn" type="submit">تحديث</button></noscript>
+  </form>
+
+  {% if graded %}
+    <a class="btn" href="?section={{ section }}">🔄 إعادة المحاولة</a>
+  {% endif %}
+</div>
+
+  </div>
+
+  <h1>أسئلة الدرس</h1>
+
+  {% if total == 0 %}
+    <div class="card"><em>لا توجد أسئلة لهذا الدرس.</em></div>
+  {% else %}
+    {% if graded %}
+      <div class="result">
+        ✅ نتيجتك: <strong>{{ score }}</strong> من <strong>{{ total }}</strong>
+      </div>
+    {% endif %}
+
+    <!-- النموذج يحيط بكل الأسئلة -->
+    <form method="post" id="quizForm">
+        {% csrf_token %}
+        <input type="hidden" name="form_name" value="grade"/>
+        <input type="hidden" name="section" value="{{ section }}"/>
+
+      {% for q in questions %}
+        <div class="q">
+          <div class="meta">{{ q.get_section_display }}</div>
+          <h3>س{{ forloop.counter }}) {{ q.text }}</h3>
+
+          <ul class="choices">
+  <!-- الخيار 1 -->
+  <li class="
+    {% if graded and q.correct == 1 %}correct{% endif %}
+    {% if graded and q.selected == 1 and q.correct != 1 %}wrong{% endif %}
+  ">
+    <input type="radio"
+           id="q{{ q.id }}_1"
+           name="q_{{ q.id }}"
+           value="1"
+           {% if q.selected == 1 %}checked{% endif %}
+           {% if graded %}disabled{% endif %}>
+    <label for="q{{ q.id }}_1">1) {{ q.choice1 }}</label>
+    {% if graded %}
+      {% if q.correct == 1 %}<span class="mark">✔</span>
+      {% elif q.selected == 1 %}<span class="mark">✖</span>{% endif %}
+    {% endif %}
+  </li>
+
+  <!-- الخيار 2 -->
+  <li class="
+    {% if graded and q.correct == 2 %}correct{% endif %}
+    {% if graded and q.selected == 2 and q.correct != 2 %}wrong{% endif %}
+  ">
+    <input type="radio"
+           id="q{{ q.id }}_2"
+           name="q_{{ q.id }}"
+           value="2"
+           {% if q.selected == 2 %}checked{% endif %}
+           {% if graded %}disabled{% endif %}>
+    <label for="q{{ q.id }}_2">2) {{ q.choice2 }}</label>
+    {% if graded %}
+      {% if q.correct == 2 %}<span class="mark">✔</span>
+      {% elif q.selected == 2 %}<span class="mark">✖</span>{% endif %}
+    {% endif %}
+  </li>
+
+  <!-- الخيار 3 -->
+  <li class="
+    {% if graded and q.correct == 3 %}correct{% endif %}
+    {% if graded and q.selected == 3 and q.correct != 3 %}wrong{% endif %}
+  ">
+    <input type="radio"
+           id="q{{ q.id }}_3"
+           name="q_{{ q.id }}"
+           value="3"
+           {% if q.selected == 3 %}checked{% endif %}
+           {% if graded %}disabled{% endif %}>
+    <label for="q{{ q.id }}_3">3) {{ q.choice3 }}</label>
+    {% if graded %}
+      {% if q.correct == 3 %}<span class="mark">✔</span>
+      {% elif q.selected == 3 %}<span class="mark">✖</span>{% endif %}
+    {% endif %}
+  </li>
+</ul>
+
+
+          {% if graded and not q.selected %}
+            <div class="muted">⚠ لم تُجب على هذا السؤال.</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      {% if not graded %}
+        <!-- زر التصحيح العائم داخل النموذج حتى يرسل POST -->
+        <button class="fab" title="تصحيح" type="submit">✅</button>
+      {% else %}
+        <!-- خيارات بعد التصحيح -->
+        <div class="card">
+          <div class="row">
+            <a class="btn" href="">🔄 إعادة المحاولة</a>
+            <a class="btn" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">⬅ الرجوع لعرض الدرس</a>
+          </div>
+        </div>
+      {% endif %}
+    </form>
+  {% endif %}
+</body>
+</html>

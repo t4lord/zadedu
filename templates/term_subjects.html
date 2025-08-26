@@ -1,0 +1,56 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مواد الفصل</title>
+  <style>
+    :root{
+      --bd:#ddd; --bd2:#bfe8c8; --bg:#fff; --bgToday:#e9f9ee; --ink:#111; --inkToday:#176c3a;
+      --pillBg:#eef; --pillBd:#dde; --tagBg:#c9f1d4; --tagBd:#b0e5bf;
+    }
+    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink)}
+    .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap}
+    .badge{display:inline-block; background:var(--pillBg); border:1px solid var(--pillBd); padding:.2rem .5rem; border-radius:8px; font-size:.9rem; margin-inline-end:.4rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none}
+    .btn:hover{background:#f7f7f7}
+    h1{margin:.4rem 0 1rem 0}
+
+    .grid{display:grid; gap:1rem; grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+    .card{position:relative; border:1px solid var(--bd); padding:1rem; border-radius:14px; text-decoration:none; color:inherit; background:var(--bg); transition:transform .1s}
+    .card:hover{transform:translateY(-3px)}
+    .card.is-today{background:var(--bgToday); border-color:var(--bd2); box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .card.is-today h3{color:var(--inkToday)}
+    .tag{position:absolute; top:.6rem; inset-inline-end:.6rem; background:var(--tagBg); border:1px solid var(--tagBd); padding:.1rem .5rem; border-radius:999px; font-size:.8rem; color:var(--inkToday)}
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      {% if weekday_name %}<span class="badge">اليوم: {{ weekday_name }}</span>{% endif %}
+    </div>
+    <div>
+      <a class="btn" href="{% url 'change_term' %}">🔁 تغيير الفصل</a>
+    </div>
+  </div>
+
+  <h1>اختر المادة</h1>
+
+  <div class="grid">
+    {% for off in offerings %}
+      <a class="card {% if off.is_today %}is-today{% endif %}"
+         href="{% url 'lessons_list' term.id off.subject.id %}">
+        <h3 style="margin:.2rem 0">{{ off.subject.name }}</h3>
+        <p style="margin:0; color:#555">الدروس: <strong>{{ off.lesson_count }}</strong></p>
+      </a>
+    {% empty %}
+      <div class="card">لا توجد مواد لهذا الفصل.</div>
+    {% endfor %}
+  </div>
+
+</body>
+</html>

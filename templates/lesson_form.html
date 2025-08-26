@@ -1,0 +1,32 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% if mode == 'create' %}إضافة درس{% else %}تعديل درس{% endif %}</title>
+  <style>
+    body{font-family:system-ui,Tahoma; margin:2rem;}
+    form{max-width:520px}
+    label{display:block; margin-top:.6rem}
+    .inp{width:100%; padding:.5rem; border:1px solid #ccc; border-radius:8px}
+    .row{margin-top:1rem; display:flex; gap:.6rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block}
+    .btn:hover{background:#f7f7f7}
+  </style>
+</head>
+<body>
+  <h1>{% if mode == 'create' %}إضافة درس{% else %}تعديل درس{% endif %} — {{ offering.subject.name }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>عنوان الدرس</label>
+    {{ form.title }}
+    <label>الترتيب</label>
+    {{ form.order }}
+    <div class="row">
+      <button class="btn" type="submit">حفظ</button>
+      <a class="btn" href="{% url 'lessons_list' offering.term.id offering.subject.id %}">إلغاء</a>
+    </div>
+  </form>
+</body>
+</html>

@@ -1,0 +1,48 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>اختيار السنة والفصل</title>
+  <style>
+    body{font-family:system-ui,Tahoma; margin:2rem;}
+    .card{border:1px solid #ddd; padding:1rem; border-radius:12px; max-width:640px}
+    .row{display:flex; gap:1rem; flex-wrap:wrap; margin-top:1rem;}
+    .col{flex:1 1 240px;}
+    button{padding:.7rem 1rem; border:0; border-radius:10px; background:#0a7; color:#fff; cursor:pointer}
+    select,button{width:100%; font-size:1rem}
+    h1{margin-top:0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>اختر السنة والفصل (مرة واحدة)</h1>
+    <form method="post" action="{% url 'set_term' %}">
+      {% csrf_token %}
+      <div class="row">
+        <div class="col">
+          <label>السنة</label>
+          <select name="year" required>
+            <option value="" disabled selected>اختر السنة</option>
+            {% for y in years %}
+              <option value="{{ y.number }}">{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label>الفصل</label>
+          <select name="term" required>
+            <option value="" disabled selected>اختر الفصل</option>
+            <option value="1">الفصل الأول</option>
+            <option value="2">الفصل الثاني</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:1rem">
+        <button type="submit">تأكيد</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

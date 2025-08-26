@@ -1,0 +1,100 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <style>
+  .lesson-link { text-decoration: none; }
+  .lesson-link:hover { text-decoration: underline; }
+
+  .edit-pencil {
+    margin-inline-start: .4rem;
+    font-size: .95rem;
+    text-decoration: none;
+    color: #666;
+  }
+  .edit-pencil:hover { color: #000; }
+</style>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>دروس {{ subject.name }} — {{ term }}</title>
+  <style>
+    body{font-family:system-ui,Tahoma; margin:2rem;}
+    .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
+    .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block}
+    .btn:hover{background:#f7f7f7}
+    table{width:100%; border-collapse:collapse; margin-top:1rem}
+    th,td{border-bottom:1px solid #eee; padding:.6rem; text-align:right}
+    .actions a{margin-inline-start:.4rem}
+  </style>
+  <style>
+  .q-badge{
+    display:inline-block; min-width:2.2rem; text-align:center;
+    padding:.15rem .45rem; border-radius:999px; font-size:.9rem;
+    border:1px solid #ddd; color:#555; text-decoration:none;
+  }
+  .q-badge.has{ background:#e9f9ee; border-color:#bfe8c8; color:#176c3a; }
+  .q-badge.empty{ background:#fafafa; color:#999; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      <span class="badge">المادة: {{ subject.name }}</span>
+    </div>
+    <div>
+      <a class="btn" href="{% url 'term_subjects' term.id %}">⬅ رجوع للمواد</a>
+      <a class="btn" href="{% url 'lesson_create' term.id subject.id %}">➕ إضافة درس</a>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>عنوان الدرس</th>
+        <th>ترتيب</th>
+        <th>أسئلة</th>
+        <th>إدارة</th>
+      </tr>
+    </thead>
+<tbody>
+  {% for lesson in lessons %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>
+        <a class="lesson-link" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">
+          {{ lesson.title }}
+        </a>
+        <a class="edit-pencil" href="{% url 'lesson_update' term.id subject.id lesson.id %}" title="تعديل اسم الدرس">✏️</a>
+      </td>
+      <td>{{ lesson.order }}</td>
+
+      <!-- عمود الأسئلة -->
+      <td>
+        {% if lesson.question_count and lesson.question_count > 0 %}
+          <a class="q-badge has" href="{% url 'lesson_questions' term.id subject.id lesson.id %}" title="عرض أسئلة الدرس">
+            ❓ {{ lesson.question_count }}
+          </a>
+        {% else %}
+          <span class="q-badge empty" title="لا توجد أسئلة">—</span>
+        {% endif %}
+      </td>
+
+      <td class="actions">
+        <a class="btn" href="{% url 'lesson_manage' term.id subject.id lesson.id %}">🧰 إدارة (محتوى/أسئلة)</a>
+        <a class="btn" href="{% url 'lesson_delete' term.id subject.id lesson.id %}">🗑️ حذف</a>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5">لا توجد دروس بعد.</td></tr>
+  {% endfor %}
+</tbody>
+
+
+  </table>
+</body>
+</html>

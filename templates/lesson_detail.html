@@ -1,0 +1,146 @@
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ lesson.title }} — عرض الدرس</title>
+  <style>
+    body{font-family:system-ui,Tahoma; margin:2rem;}
+    .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
+    .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer}
+    .btn:hover{background:#f7f7f7}
+    .card{border:1px solid #ddd; border-radius:12px; padding:1rem; margin-top:1rem}
+    .toolbar{display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.6rem}
+    .hidden{display:none}
+    /* منطقة العرض/التحرير */
+    #viewer{line-height:1.9}
+    #editor{line-height:1.9; min-height:200px; border:1px dashed #bbb; padding:1rem; border-radius:10px}
+    /* زر أسئلة الدرس (عائم) */
+    .fab{
+      position: fixed; left: 1.2rem; bottom: 1.2rem;
+      width: 48px; height: 48px; border-radius: 50%;
+      display:flex; align-items:center; justify-content:center;
+      border: 1px solid #ccc; background:#fff; text-decoration:none; font-size:1.2rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+    .fab:hover{background:#f7f7f7}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      <span class="badge">المادة: {{ subject.name }}</span>
+    </div>
+    <div>
+      <a class="btn" href="{% url 'lessons_list' term.id subject.id %}">⬅ رجوع للدروس</a>
+      <!-- تفعيل وضع التحرير -->
+      <button class="btn" id="editToggleBtn" type="button">✏️ تحرير</button>
+    </div>
+  </div>
+
+  <h1>{{ lesson.title }}</h1>
+
+  <div class="card">
+    <!-- شريط الأدوات يظهر في وضع التحرير فقط -->
+    <div class="toolbar hidden" id="toolbar">
+      <button class="btn" type="button" id="boldBtn"><strong>B</strong></button>
+      <button class="btn" type="button" id="cleanBtn">🧹 تنظيف المسافات</button>
+      <form method="post" id="saveForm" style="display:inline">
+        {% csrf_token %}
+        <input type="hidden" name="form_name" value="save_content"/>
+        <input type="hidden" name="body_html" id="bodyHtmlInput"/>
+        <button class="btn" type="submit">💾 حفظ</button>
+        <button class="btn" type="button" id="cancelBtn">إلغاء</button>
+      </form>
+    </div>
+
+    <!-- وضع العرض -->
+    <div id="viewer">
+      {% if content and content.body %}
+        <div id="viewerHtml">{{ content.body|safe }}</div>
+      {% else %}
+        <em>لا يوجد محتوى نصّي لهذا الدرس بعد.</em>
+      {% endif %}
+    </div>
+
+    <!-- وضع التحرير (مخفي افتراضيًا) -->
+    <div id="editorWrap" class="hidden">
+      <div id="editor" contenteditable="true"></div>
+      <small style="color:#666;display:block;margin-top:.4rem">
+        تلميح: حدّد نصًا ثم اضغط <strong>B</strong> لعمله عريضًا. زر 🧹 يزيل المسافات المكررة ويستبدل &nbsp; بمسافات عادية.
+      </small>
+    </div>
+  </div>
+
+  <!-- أيقونة الانتقال لأسئلة الدرس -->
+  <a class="fab" href="{% url 'lesson_questions' term.id subject.id lesson.id %}" title="أسئلة الدرس">❓</a>
+
+  <script>
+    const editToggleBtn = document.getElementById('editToggleBtn');
+    const toolbar       = document.getElementById('toolbar');
+    const viewer        = document.getElementById('viewer');
+    const viewerHtml    = document.getElementById('viewerHtml');
+    const editorWrap    = document.getElementById('editorWrap');
+    const editor        = document.getElementById('editor');
+    const bodyHtmlInput = document.getElementById('bodyHtmlInput');
+    const saveForm      = document.getElementById('saveForm');
+    const boldBtn       = document.getElementById('boldBtn');
+    const cleanBtn      = document.getElementById('cleanBtn');
+    const cancelBtn     = document.getElementById('cancelBtn');
+
+    let snapshotHtml = '';
+
+    function enterEdit() {
+      snapshotHtml = viewerHtml ? viewerHtml.innerHTML : '';
+      editor.innerHTML = snapshotHtml;
+      viewer.classList.add('hidden');
+      editorWrap.classList.remove('hidden');
+      toolbar.classList.remove('hidden');
+      editToggleBtn.disabled = true;
+    }
+
+    function exitEdit(discard=false) {
+      if (!discard) {
+        // بعد الحفظ، الصفحة تُعاد تحميلها من السيرفر بـ redirect
+      } else {
+        // إلغاء: ارجع لما كان
+        editor.innerHTML = snapshotHtml;
+      }
+      viewer.classList.remove('hidden');
+      editorWrap.classList.add('hidden');
+      toolbar.classList.add('hidden');
+      editToggleBtn.disabled = false;
+    }
+
+    editToggleBtn?.addEventListener('click', enterEdit);
+    cancelBtn?.addEventListener('click', () => exitEdit(true));
+
+    // Bold على التحديد الحالي (execCommand مدعوم على كروميوم)
+    boldBtn?.addEventListener('click', () => {
+      editor.focus();
+      document.execCommand('bold', false, null);
+    });
+
+    // تنظيف المسافات: يحوّل &nbsp; لمسافة، ويُقلّص المسافات المكررة، ويزيل الفراغات الزائدة حول الوسوم
+    cleanBtn?.addEventListener('click', () => {
+      const html = editor.innerHTML
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/>\s+/g, '>')
+        .replace(/\s+</g, '<')
+        .trim();
+      editor.innerHTML = html;
+    });
+
+    // حفظ: انسخ HTML من المحرّر إلى حقل مخفي وارسِل
+    saveForm?.addEventListener('submit', (e) => {
+      bodyHtmlInput.value = editor.innerHTML.trim();
+      // يُكمل الإرسال عادي، وبعده view سيعمل redirect لنفس الصفحة
+    });
+  </script>
+</body>
+</html>
