@@ -7,7 +7,12 @@ from .models import (
     Year, Term, SubjectOffering,
     Lesson, LessonContent, Question, SECTION_CHOICES
 )
+<<<<<<< HEAD
 
+=======
+from django.http import HttpResponse
+def healthz(request): return HttpResponse("ok")
+>>>>>>> ea62e24 (feat: <وصف التعديل>)
 SESSION_KEY = 'selected_term_id'
 
 
