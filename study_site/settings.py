@@ -19,7 +19,11 @@ SECRET_KEY = 'django-insecure-_2rfpq5k=3lw#zx3x!v@3j#u#s0vlun9%bemt%_7tl(ub&t_m_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+#ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["zadedu.onrender.com"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://zadedu.onrender.com"
+]
 
 
 # Application definition
