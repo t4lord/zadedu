@@ -4,15 +4,19 @@ from django.urls import path
 from edu.views import (
     home_view, select_term_view, set_term_view, change_term_view, term_subjects_view,
     lessons_list_view, lesson_create_view, lesson_update_view, lesson_delete_view, lesson_manage_view,
-    lesson_detail_view, lesson_questions_view,
+    lesson_detail_view, lesson_questions_view,healthz
 )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     path('healthz', views.healthz, name='healthz'),
 >>>>>>> ea62e24 (feat: <وصف التعديل>)
+=======
+    path('healthz', healthz, name='healthz'),
+>>>>>>> 8c8371b (Add migrations for edu models)
     path('', select_term_view, name='home'),
     path('', home_view, name='home'),
     path('select-term/', select_term_view, name='select_term'),

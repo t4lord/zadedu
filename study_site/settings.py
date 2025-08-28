@@ -1,6 +1,7 @@
 from pathlib import Path
-
+import os, dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 SECRET_KEY = 'django-insecure-_2rfpq5k=3lw#zx3x!v@3j#u#s0vlun9%bemt%_7tl(ub&t_m_'
 DEBUG = True
 
@@ -62,12 +63,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'study_site.wsgi.application'
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL:
+    # إنتاج/Render: استخدم Postgres من Neon
+    import dj_database_url
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
     }
-}
+else:
+    # محلي: fallback إلى SQLite حتى لو ما فيه DATABASE_URL
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {

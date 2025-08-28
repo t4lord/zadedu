@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import dj_database_url
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # لا تضع المفتاح الحقيقي هنا. على Render ضَع Environment Variable باسم SECRET_KEY
@@ -58,17 +57,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "study_site.wsgi.application"
 
-# قاعدة البيانات:
-# افتراضيًا SQLite (للتطوير/التجربة)،
-# وعند وجود DATABASE_URL (على Render عندما تربط Postgres) سيُستخدم تلقائيًا.
-default_sqlite_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
-DATABASES = {
-    "default": dj_database_url.config(
-        default=default_sqlite_url,
-        conn_max_age=600,   # يحسّن الأداء للاتصالات الدائمة في Postgres
-        ssl_require=True    # آمن مع قواعد البيانات المُدارة عبر الإنترنت
-    )
-}
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL:
+    # إنتاج/Render: استخدم Postgres من Neon
+    import dj_database_url
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    # محلي: fallback إلى SQLite حتى لو ما فيه DATABASE_URL
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
