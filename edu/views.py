@@ -1,4 +1,5 @@
 # edu/views.py
+from django.apps import apps
 from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
 from django.db.models import Prefetch
@@ -6,7 +7,9 @@ from django.forms import ModelForm
 from django.conf import settings
 from django.views.decorators.http import require_POST
 from .models import Year, Term, SubjectOffering,Lesson, LessonContent, Question, SECTION_CHOICES
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+
+from edu import models
 
 def healthz(request): return HttpResponse("ok")
 
@@ -14,26 +17,48 @@ SESSION_KEY = 'selected_term_id'
 COOKIE_KEY = "active_term_id"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 180  # 180 يوم
 
+def _find_year_term_models():
+    """
+    يكتشف موديلَي السنة والفصل تلقائيًا من app=edu:
+    - يعتبر "الفصل" هو أي موديل يحتوي حقل Integer اسمه number
+      وحقل ForeignKey اسمه year يشير لموديل آخر.
+    - يعيد: (YearModel, TermModel, year_fk_name)
+    """
+    app_cfg = apps.get_app_config("edu")
+    for m in app_cfg.get_models():
+        fields = {f.name: f for f in m._meta.get_fields()}
+        numf = fields.get("number")
+        yearf = fields.get("year")
+        if isinstance(numf, models.IntegerField) and isinstance(yearf, models.ForeignKey):
+            YearModel = yearf.remote_field.model
+            TermModel = m
+            return YearModel, TermModel, "year"
+    raise LookupError("تعذر اكتشاف موديلات السنة/الفصل تلقائيًا. راجع أسماء الحقول (number/year).")
+
 def select_year_term_view(request):
-    # حدّد اسم العلاقة العكسيّة (terms أو term_set) بشكل آمن
-    year_fk = Term._meta.get_field("year")
-    rel_name = year_fk.remote_field.related_name or "term_set"
+    Year, Term, year_fk_name = _find_year_term_models()
+
+    # related_name العكسي من السنة إلى الفصول (term_set أو مخصّص)
+    year_fk = Term._meta.get_field(year_fk_name)
+    rel_name = year_fk.remote_field.related_name or f"{Term._meta.model_name}_set"
 
     years_qs = Year.objects.all().order_by("id").prefetch_related(
         Prefetch(rel_name, queryset=Term.objects.order_by("number"))
     )
 
-    # ابنِ قائمة آمنة للقالب: [(year, [terms...]), ...]
+    # نبني بنية بسيطة للقالب
     year_groups = []
     for y in years_qs:
-        terms_manager = getattr(y, rel_name)  # terms أو term_set
-        year_groups.append({
-            "year": y,
-            "terms": list(terms_manager.all()),
-        })
+        terms_manager = getattr(y, rel_name)
+        year_groups.append({"year": y, "terms": list(terms_manager.all())})
 
     active_id = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
-    active_term = Term.objects.filter(pk=active_id).select_related("year").first()
+    active_term = None
+    if active_id:
+        try:
+            active_term = Term.objects.select_related(year_fk_name).get(pk=active_id)
+        except Term.DoesNotExist:
+            active_term = None
 
     return render(request, "select_year_term.html", {
         "year_groups": year_groups,
@@ -42,11 +67,12 @@ def select_year_term_view(request):
 
 @require_POST
 def set_active_term_view(request):
+    Year, Term, _ = _find_year_term_models()
     term_id = request.POST.get("term_id")
     term = get_object_or_404(Term, pk=term_id)
 
     request.session[COOKIE_KEY] = str(term.id)
-    resp = redirect("subjects_grid", term_id=term.id)  # عدّل الاسم لو مختلف عندك
+    resp = redirect("subjects_grid", term_id=term.id)  # تأكد أن اسم المسار موجود
     resp.set_cookie(
         COOKIE_KEY, str(term.id),
         max_age=COOKIE_MAX_AGE,
@@ -61,6 +87,16 @@ def clear_active_term_view(request):
     request.session.pop(COOKIE_KEY, None)
     resp.delete_cookie(COOKIE_KEY)
     return resp
+
+# اختياري للتشخيص السريع — احذفه لاحقًا
+def diag_year_term(request):
+    Year, Term, _ = _find_year_term_models()
+    return JsonResponse({
+        "years_count": Year.objects.count(),
+        "terms_count": Term.objects.count(),
+        "year_model": f"{Year._meta.app_label}.{Year._meta.model_name}",
+        "term_model": f"{Term._meta.app_label}.{Term._meta.model_name}",
+    })
 # ===================== جلسة الفصل =====================
 def home_view(request):
     term_id = request.session.get(SESSION_KEY)
