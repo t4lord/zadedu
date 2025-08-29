@@ -12,6 +12,13 @@
   </style>
 </head>
 <body>
+  {% if diag_error %}
+  <div style="padding:10px;border:1px solid #f3caca;background:#fff4f4;color:#900;margin-bottom:1rem">
+    ⚠ {{ diag_error }}
+    — راجع <a href="/diag-models/">/diag-models/</a> و <a href="/diag-db/">/diag-db/</a> للتشخيص.
+  </div>
+{% endif %}
+
   <h1>اختر السنة ثم الفصل</h1>
 
   {% if year_groups %}

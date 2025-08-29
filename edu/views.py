@@ -17,14 +17,13 @@ SESSION_KEY = 'selected_term_id'
 COOKIE_KEY = "active_term_id"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 180  # 180 يوم
 
-def _find_year_term_models():
-    """
-    يكتشف موديلَي السنة والفصل تلقائيًا من app=edu:
-    - يعتبر "الفصل" هو أي موديل يحتوي حقل Integer اسمه number
-      وحقل ForeignKey اسمه year يشير لموديل آخر.
-    - يعيد: (YearModel, TermModel, year_fk_name)
-    """
-    app_cfg = apps.get_app_config("edu")
+def _find_year_term_models_safe():
+    """اكتشاف موديلات السنة/الفصل داخل app=edu مع إرجاع سبب الفشل بدل رفع استثناء."""
+    try:
+        app_cfg = apps.get_app_config("edu")
+    except LookupError as e:
+        return None, None, None, f"App 'edu' غير موجود في INSTALLED_APPS: {e!r}"
+
     for m in app_cfg.get_models():
         fields = {f.name: f for f in m._meta.get_fields()}
         numf = fields.get("number")
@@ -32,13 +31,83 @@ def _find_year_term_models():
         if isinstance(numf, models.IntegerField) and isinstance(yearf, models.ForeignKey):
             YearModel = yearf.remote_field.model
             TermModel = m
-            return YearModel, TermModel, "year"
-    raise LookupError("تعذر اكتشاف موديلات السنة/الفصل تلقائيًا. راجع أسماء الحقول (number/year).")
+            return YearModel, TermModel, "year", None
+    return None, None, None, "تعذر اكتشاف موديلات السنة/الفصل: رجاءً تأكد أن موديل (الفصل) لديه IntegerField اسمه number و ForeignKey اسمه year."
 
+def diag_db(request):
+    """يعرض معلومات اتصال القاعدة بدون أسرار."""
+    cfg = connection.settings_dict
+    data = {
+        "engine": cfg.get("ENGINE"),
+        "name": str(cfg.get("NAME")),
+        "host": cfg.get("HOST"),
+        "port": cfg.get("PORT"),
+        "user": cfg.get("USER", "hidden"),
+        # لا نعرض كلمة المرور
+    }
+    return JsonResponse(data)
+
+def diag_models(request):
+    """يعرض جميع موديلات edu وحقولها لمعرفة الأسماء الفعلية."""
+    data = {}
+    try:
+        app_cfg = apps.get_app_config("edu")
+        for m in app_cfg.get_models():
+            data[m._meta.model_name] = [
+                {"name": f.name, "type": f.__class__.__name__}
+                for f in m._meta.get_fields()
+            ]
+    except Exception as e:
+        return JsonResponse({"error": repr(e)}, status=500)
+    return JsonResponse(data)
+
+def diag_year_term(request):
+    """نسخة آمنة: تحاول حساب الأعداد، وإن فشلت تعرض سببًا + قائمة الموديلات."""
+    Year, Term, year_fk_name, err = _find_year_term_models_safe()
+    out = {}
+    if err:
+        out["error"] = err
+        # أعرض أيضًا موديلات edu لمساعدتنا على معرفة الأسماء
+        try:
+            app_cfg = apps.get_app_config("edu")
+            models_dump = {}
+            for m in app_cfg.get_models():
+                models_dump[m._meta.model_name] = [
+                    {"name": f.name, "type": f.__class__.__name__}
+                    for f in m._meta.get_fields()
+                ]
+            out["edu_models"] = models_dump
+        except Exception as e:
+            out["models_error"] = repr(e)
+        return JsonResponse(out, status=200)
+
+    # نجاح: احسب الأعداد
+    try:
+        years_count = Year.objects.count()
+        terms_count = Term.objects.count()
+    except Exception as e:
+        return JsonResponse({"error": f"DB error: {e!r}"}, status=500)
+
+    out.update({
+        "year_model": f"{Year._meta.app_label}.{Year._meta.model_name}",
+        "term_model": f"{Term._meta.app_label}.{Term._meta.model_name}",
+        "years_count": years_count,
+        "terms_count": terms_count,
+    })
+    return JsonResponse(out)
+
+# --- استخدم هذه النسخة للفيو الرئيسي للاختيار (لا تنفجر لو ما وجدنا الموديلات) ---
 def select_year_term_view(request):
-    Year, Term, year_fk_name = _find_year_term_models()
+    Year, Term, year_fk_name, err = _find_year_term_models_safe()
+    if err:
+        # أعرض رسالة واضحة بدل “لا توجد سنين”
+        return render(request, "select_year_term.html", {
+            "year_groups": [],
+            "active_term": None,
+            "diag_error": err,
+        })
 
-    # related_name العكسي من السنة إلى الفصول (term_set أو مخصّص)
+    # related_name العكسي term_set أو المخصص
     year_fk = Term._meta.get_field(year_fk_name)
     rel_name = year_fk.remote_field.related_name or f"{Term._meta.model_name}_set"
 
@@ -46,7 +115,6 @@ def select_year_term_view(request):
         Prefetch(rel_name, queryset=Term.objects.order_by("number"))
     )
 
-    # نبني بنية بسيطة للقالب
     year_groups = []
     for y in years_qs:
         terms_manager = getattr(y, rel_name)
@@ -63,23 +131,20 @@ def select_year_term_view(request):
     return render(request, "select_year_term.html", {
         "year_groups": year_groups,
         "active_term": active_term,
+        "diag_error": None,
     })
 
 @require_POST
 def set_active_term_view(request):
-    Year, Term, _ = _find_year_term_models()
+    Year, Term, _, err = _find_year_term_models_safe()
+    if err:
+        return redirect("select_year_term")
     term_id = request.POST.get("term_id")
     term = get_object_or_404(Term, pk=term_id)
-
     request.session[COOKIE_KEY] = str(term.id)
-    resp = redirect("subjects_grid", term_id=term.id)  # تأكد أن اسم المسار موجود
-    resp.set_cookie(
-        COOKIE_KEY, str(term.id),
-        max_age=COOKIE_MAX_AGE,
-        secure=not settings.DEBUG,
-        samesite="Lax",
-        httponly=False,
-    )
+    resp = redirect("subjects_grid", term_id=term.id)  # تأكد من اسم المسار عندك
+    resp.set_cookie(COOKIE_KEY, str(term.id), max_age=COOKIE_MAX_AGE,
+                    secure=not settings.DEBUG, samesite="Lax", httponly=False)
     return resp
 
 def clear_active_term_view(request):
@@ -87,16 +152,6 @@ def clear_active_term_view(request):
     request.session.pop(COOKIE_KEY, None)
     resp.delete_cookie(COOKIE_KEY)
     return resp
-
-# اختياري للتشخيص السريع — احذفه لاحقًا
-def diag_year_term(request):
-    Year, Term, _ = _find_year_term_models()
-    return JsonResponse({
-        "years_count": Year.objects.count(),
-        "terms_count": Term.objects.count(),
-        "year_model": f"{Year._meta.app_label}.{Year._meta.model_name}",
-        "term_model": f"{Term._meta.app_label}.{Term._meta.model_name}",
-    })
 # ===================== جلسة الفصل =====================
 def home_view(request):
     term_id = request.session.get(SESSION_KEY)
