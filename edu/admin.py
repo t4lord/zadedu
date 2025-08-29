@@ -2,19 +2,33 @@ from django.contrib import admin, messages
 from django.conf import settings
 from django.apps import apps
 
-from .models import Year, Term, Subject, SubjectOffering, Lesson, LessonContent, Question
+from .models import (
+    Year, Term, Subject, SubjectOffering, Lesson, LessonContent, Question, SubjectSchedule
+)
 
-
+# سجّل النماذج الأساسية
 admin.site.register(Lesson)
 admin.site.register(LessonContent)
 admin.site.register(Question)
+
+# ===== أكشن: إنشاء فصول 1 و2 لكل سنة (Idempotent) =====
+@admin.action(description="إنشاء فصول (1 و2) للسنة/السنين المحددة (لن يكرر الموجود)")
+def ensure_terms_action(modeladmin, request, queryset):
+    created = 0
+    for y in queryset:
+        for n in (1, 2):
+            _, c = Term.objects.get_or_create(year=y, number=n)
+            created += int(c)
+    messages.success(request, f"تم إنشاء {created} فصل جديد (إن وُجد ناقص).")
 
 @admin.register(Year)
 class YearAdmin(admin.ModelAdmin):
     list_display = ('id', 'number')
     list_filter = ('number',)
+    actions = [ensure_terms_action]
 
-OFFERING_MODEL_NAME = "Offering"  # أو "SubjectOffering" أو None
+# ===== أكشن: إنشاء مواد افتراضية (SubjectOffering) للترم =====
+OFFERING_MODEL_NAME = "SubjectOffering"  # لدينا موديل الربط فعلاً
 
 @admin.action(description="تطبيق المناهج الافتراضية (7 مواد) للترم/الأترام المحددة")
 def apply_default_subjects(modeladmin, request, queryset):
@@ -23,13 +37,11 @@ def apply_default_subjects(modeladmin, request, queryset):
         messages.error(request, "DEFAULT_SUBJECTS غير معرّفة في settings.")
         return
 
-    # إن وُجد موديل Offering نحاول استخدامه
     Offering = None
-    if OFFERING_MODEL_NAME:
-        try:
-            Offering = apps.get_model("edu", OFFERING_MODEL_NAME)
-        except LookupError:
-            Offering = None  # نكمل بدونها
+    try:
+        Offering = apps.get_model("edu", OFFERING_MODEL_NAME)
+    except LookupError:
+        Offering = None
 
     created_total = 0
     for term in queryset:
@@ -38,22 +50,18 @@ def apply_default_subjects(modeladmin, request, queryset):
             if Offering:
                 _, created = Offering.objects.get_or_create(term=term, subject=subj)
                 created_total += int(created)
-            else:
-                # لو ما عندك Offering: يكفي وجود Subject،
-                # والقوائم تبنى بالفلترة (Lesson.objects.filter(term=..., subject=...)).
-                pass
 
     if Offering:
         messages.success(request, f"تم إنشاء/استكمال الربط لمجموع: {created_total} مادة/ترم.")
     else:
-        messages.success(request, "تم التأكد من وجود المواد الافتراضية. (لا يوجد موديل ربط Offering).")
+        messages.success(request, "تم التأكد من وجود المواد الافتراضية (لا يوجد موديل ربط).")
 
 @admin.register(Term)
 class TermAdmin(admin.ModelAdmin):
     list_display = ("id", "year", "number")
+    list_filter = ("year__number", "number")
     actions = [apply_default_subjects]
 
-# سجّل Subject لو لم يكن مسجلاً
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
@@ -65,7 +73,6 @@ class SubjectOfferingAdmin(admin.ModelAdmin):
     list_filter = ('term__year__number', 'term__number', 'subject__name')
     search_fields = ('subject__name',)
 
-from .models import SubjectSchedule
 @admin.register(SubjectSchedule)
 class SubjectScheduleAdmin(admin.ModelAdmin):
     list_display = ('offering', 'weekday', 'lecture_no')

@@ -12,37 +12,31 @@
   </style>
 </head>
 <body>
-  {% if diag_error %}
-  <div style="padding:10px;border:1px solid #f3caca;background:#fff4f4;color:#900;margin-bottom:1rem">
-    ⚠ {{ diag_error }}
-    — راجع <a href="/diag-models/">/diag-models/</a> و <a href="/diag-db/">/diag-db/</a> للتشخيص.
-  </div>
+<h1>اختر السنة ثم الفصل</h1>
+
+{% if year_groups %}
+  {% for g in year_groups %}
+    <div class="year">
+      <h3>السنة: {{ g.year }}</h3>
+      <div class="grid">
+        {% for t in g.terms %}
+          <form method="post" action="{% url 'set_active_term' %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="term_id" value="{{ t.id }}">
+            <button class="btn" type="submit">
+              الفصل {{ t.get_number_display|default:t.number }}
+            </button>
+          </form>
+        {% empty %}
+          <div class="muted">لا توجد فصول لهذه السنة.</div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>لا توجد سنين بعد. أضِفها من <a href="/admin/">لوحة الإدارة</a>.</p>
 {% endif %}
 
-  <h1>اختر السنة ثم الفصل</h1>
-
-  {% if year_groups %}
-    {% for g in year_groups %}
-      <div class="year">
-        <h3>السنة: {{ g.year }}</h3>
-        <div class="grid">
-          {% for t in g.terms %}
-            <form method="post" action="{% url 'set_active_term' %}" style="display:inline">
-              {% csrf_token %}
-              <input type="hidden" name="term_id" value="{{ t.id }}">
-              <button class="btn" type="submit">
-                الفصل {{ t.get_number_display|default:t.number }}
-              </button>
-            </form>
-          {% empty %}
-            <div class="muted">لا توجد فصول لهذه السنة.</div>
-          {% endfor %}
-        </div>
-      </div>
-    {% endfor %}
-  {% else %}
-    <p>لا توجد سنين بعد. أضِفها من <a href="/admin/">لوحة الإدارة</a>.</p>
-  {% endif %}
 
   {% if active_term %}
     <p class="muted">

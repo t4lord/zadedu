@@ -3,155 +3,63 @@ from django.apps import apps
 from django.db import connection
 from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count, Exists, OuterRef
 from django.forms import ModelForm
 from django.conf import settings
 from django.views.decorators.http import require_POST
-from .models import Year, Term, SubjectOffering,Lesson, LessonContent, Question, SECTION_CHOICES
 from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 
-from edu import models
+from .models import (
+    Year, Term, SubjectOffering, Lesson, LessonContent, Question, SECTION_CHOICES,
+    SubjectSchedule
+)
 
-def healthz(request): return HttpResponse("ok")
+def healthz(request): 
+    return HttpResponse("ok")
 
-
+# مفاتيح الجلسة/الكوكي
 SESSION_KEY = 'selected_term_id'
 COOKIE_KEY = "active_term_id"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 180  # 180 يوم
 
-def _find_year_term_models_safe():
-    """اكتشاف موديلات السنة/الفصل داخل app=edu مع إرجاع سبب الفشل بدل رفع استثناء."""
-    try:
-        app_cfg = apps.get_app_config("edu")
-    except LookupError as e:
-        return None, None, None, f"App 'edu' غير موجود في INSTALLED_APPS: {e!r}"
+# ===================== اختيار السنة والفصل (جديد) =====================
 
-    for m in app_cfg.get_models():
-        fields = {f.name: f for f in m._meta.get_fields()}
-        numf = fields.get("number")
-        yearf = fields.get("year")
-        if isinstance(numf, models.IntegerField) and isinstance(yearf, models.ForeignKey):
-            YearModel = yearf.remote_field.model
-            TermModel = m
-            return YearModel, TermModel, "year", None
-    return None, None, None, "تعذر اكتشاف موديلات السنة/الفصل: رجاءً تأكد أن موديل (الفصل) لديه IntegerField اسمه number و ForeignKey اسمه year."
-
-def subjects_grid_view(request, term_id):
-    # TODO: هنا لاحقًا اعرض بطاقات المواد الخاصة بالترم
-    # مؤقتًا نرجّع المستخدم لصفحة اختيار الترم بدل ما ينفجر السيرفر.
-    return redirect("select_year_term")
-
-def diag_db(request):
-    """يعرض معلومات اتصال القاعدة بدون أسرار."""
-    cfg = connection.settings_dict
-    data = {
-        "engine": cfg.get("ENGINE"),
-        "name": str(cfg.get("NAME")),
-        "host": cfg.get("HOST"),
-        "port": cfg.get("PORT"),
-        "user": cfg.get("USER", "hidden"),
-        # لا نعرض كلمة المرور
-    }
-    return JsonResponse(data)
-
-def diag_models(request):
-    """يعرض جميع موديلات edu وحقولها لمعرفة الأسماء الفعلية."""
-    data = {}
-    try:
-        app_cfg = apps.get_app_config("edu")
-        for m in app_cfg.get_models():
-            data[m._meta.model_name] = [
-                {"name": f.name, "type": f.__class__.__name__}
-                for f in m._meta.get_fields()
-            ]
-    except Exception as e:
-        return JsonResponse({"error": repr(e)}, status=500)
-    return JsonResponse(data)
-
-def diag_year_term(request):
-    """نسخة آمنة: تحاول حساب الأعداد، وإن فشلت تعرض سببًا + قائمة الموديلات."""
-    Year, Term, year_fk_name, err = _find_year_term_models_safe()
-    out = {}
-    if err:
-        out["error"] = err
-        # أعرض أيضًا موديلات edu لمساعدتنا على معرفة الأسماء
-        try:
-            app_cfg = apps.get_app_config("edu")
-            models_dump = {}
-            for m in app_cfg.get_models():
-                models_dump[m._meta.model_name] = [
-                    {"name": f.name, "type": f.__class__.__name__}
-                    for f in m._meta.get_fields()
-                ]
-            out["edu_models"] = models_dump
-        except Exception as e:
-            out["models_error"] = repr(e)
-        return JsonResponse(out, status=200)
-
-    # نجاح: احسب الأعداد
-    try:
-        years_count = Year.objects.count()
-        terms_count = Term.objects.count()
-    except Exception as e:
-        return JsonResponse({"error": f"DB error: {e!r}"}, status=500)
-
-    out.update({
-        "year_model": f"{Year._meta.app_label}.{Year._meta.model_name}",
-        "term_model": f"{Term._meta.app_label}.{Term._meta.model_name}",
-        "years_count": years_count,
-        "terms_count": terms_count,
-    })
-    return JsonResponse(out)
-
-# --- استخدم هذه النسخة للفيو الرئيسي للاختيار (لا تنفجر لو ما وجدنا الموديلات) ---
 def select_year_term_view(request):
-    Year, Term, year_fk_name, err = _find_year_term_models_safe()
-    if err:
-        # أعرض رسالة واضحة بدل “لا توجد سنين”
-        return render(request, "select_year_term.html", {
-            "year_groups": [],
-            "active_term": None,
-            "diag_error": err,
-        })
-
-    # related_name العكسي term_set أو المخصص
-    year_fk = Term._meta.get_field(year_fk_name)
-    rel_name = year_fk.remote_field.related_name or f"{Term._meta.model_name}_set"
-
+    # العلاقة العكسية الصحيحة هي "terms" (من فحص /diag-models/)
+    rel_name = "terms"
     years_qs = Year.objects.all().order_by("id").prefetch_related(
         Prefetch(rel_name, queryset=Term.objects.order_by("number"))
     )
 
     year_groups = []
     for y in years_qs:
-        terms_manager = getattr(y, rel_name)
+        terms_manager = getattr(y, rel_name)  # y.terms
         year_groups.append({"year": y, "terms": list(terms_manager.all())})
 
     active_id = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
-    active_term = None
-    if active_id:
-        try:
-            active_term = Term.objects.select_related(year_fk_name).get(pk=active_id)
-        except Term.DoesNotExist:
-            active_term = None
+    active_term = Term.objects.select_related("year").filter(pk=active_id).first()
 
     return render(request, "select_year_term.html", {
         "year_groups": year_groups,
         "active_term": active_term,
-        "diag_error": None,
     })
 
 @require_POST
 def set_active_term_view(request):
-    Year, Term, _, err = _find_year_term_models_safe()
-    if err:
-        return redirect("select_year_term")
     term_id = request.POST.get("term_id")
     term = get_object_or_404(Term, pk=term_id)
+
     request.session[COOKIE_KEY] = str(term.id)
-    resp = redirect("subjects_grid", term_id=term.id)  # تأكد من اسم المسار عندك
-    resp.set_cookie(COOKIE_KEY, str(term.id), max_age=COOKIE_MAX_AGE,
-                    secure=not settings.DEBUG, samesite="Lax", httponly=False)
+    # نحو صفحة المناهج
+    resp = redirect("subjects_grid", term_id=term.id)
+    resp.set_cookie(
+        COOKIE_KEY, str(term.id),
+        max_age=COOKIE_MAX_AGE,
+        secure=not settings.DEBUG,
+        samesite="Lax",
+        httponly=False,
+    )
     return resp
 
 def clear_active_term_view(request):
@@ -159,18 +67,50 @@ def clear_active_term_view(request):
     request.session.pop(COOKIE_KEY, None)
     resp.delete_cookie(COOKIE_KEY)
     return resp
-# ===================== جلسة الفصل =====================
+
+# ===================== تشخيص بسيط =====================
+
+def diag_db(request):
+    cfg = connection.settings_dict.copy()
+    cfg.pop("PASSWORD", None)
+    cfg.pop("OPTIONS", None)
+    return JsonResponse({
+        "engine": cfg.get("ENGINE"),
+        "name": cfg.get("NAME"),
+        "host": cfg.get("HOST"),
+        "port": cfg.get("PORT"),
+        "user": cfg.get("USER"),
+    })
+
+def diag_models(request):
+    data = {}
+    for model in apps.get_app_config('edu').get_models():
+        fields = []
+        for f in model._meta.get_fields():
+            fields.append({"name": f.name, "type": f.__class__.__name__})
+        data[model.__name__.lower()] = fields
+    return JsonResponse(data)
+
+def diag_year_term(request):
+    rel_name = "terms"
+    out = []
+    for y in Year.objects.all().order_by("id"):
+        terms = list(getattr(y, rel_name).all().order_by("number").values("id", "number"))
+        out.append({"year_id": y.id, "year_number": y.number, "terms": terms})
+    active = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
+    return JsonResponse({"active_term_id": active, "years": out})
+
+# ===================== واجهات قديمة (اختياري إبقاؤها) =====================
+
 def home_view(request):
     term_id = request.session.get(SESSION_KEY)
     if term_id:
         return redirect('term_subjects', term_id=term_id)
     return redirect('select_term')
 
-
 def select_term_view(request):
     years = Year.objects.order_by('number').prefetch_related('terms')
     return render(request, 'select_term.html', {'years': years})
-
 
 def set_term_view(request):
     if request.method != 'POST':
@@ -186,36 +126,27 @@ def set_term_view(request):
     request.session[SESSION_KEY] = term.id
     return redirect('term_subjects', term_id=term.id)
 
-
 def change_term_view(request):
     if SESSION_KEY in request.session:
         del request.session[SESSION_KEY]
         request.session.modified = True
     return redirect('select_term')
 
-
-from django.db.models import Count  # ← أضِف هذا الاستيراد
-from django.db.models import Count, Exists, OuterRef
-from django.utils import timezone
-from .models import SubjectSchedule  # جديد
+# ===================== صفحة مناهج الفصل =====================
 
 AR_DAYS = ['الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت','الأحد']
 
 def term_subjects_view(request, term_id: int):
     term = get_object_or_404(Term, id=term_id)
 
-    # اليوم الحالي (بتوقيت مشروعك)
-    today = timezone.localtime()
-    weekday = today.weekday()  # الاثنين=0 .. الأحد=6
-
-    # (للمعاينة اليدوية من المتصفح: ?preview_day=0..6)
+    # اليوم الحالي مع معاينة يدوية عبر ?preview_day=0..6
+    weekday = timezone.localtime().weekday()
     pd = request.GET.get('preview_day')
     if pd is not None and pd.isdigit():
         w = int(pd)
         if 0 <= w <= 6:
             weekday = w
 
-    # فلتر "هل لهذه المادة جدول اليوم؟"
     schedules_today = SubjectSchedule.objects.filter(offering=OuterRef('pk'), weekday=weekday)
 
     offerings = (
@@ -223,14 +154,14 @@ def term_subjects_view(request, term_id: int):
         .filter(term=term)
         .select_related('subject')
         .annotate(
-            lesson_count=Count('lessons', distinct=True),  # عدّ صحيح
-            is_today=Exists(schedules_today),              # بوليان اليوم
+            lesson_count=Count('lessons', distinct=True),
+            is_today=Exists(schedules_today),
         )
         .order_by('subject__name')
-        .distinct()  # منع أي تكرار بسبب الانضمامات
+        .distinct()
     )
 
-    # احفظ الفصل المختار في الجلسة
+    # نحفظ الترم المختار بالجلسة (للوضع القديم)
     if request.session.get(SESSION_KEY) != term.id:
         request.session[SESSION_KEY] = term.id
         request.session.modified = True
@@ -241,7 +172,13 @@ def term_subjects_view(request, term_id: int):
         'weekday_name': AR_DAYS[weekday],
         'weekday_index': weekday,
     })
+
+# alias بسيط لتجنّب كسر الروابط
+def subjects_grid_view(request, term_id: int):
+    return term_subjects_view(request, term_id)
+
 # ===================== Forms =====================
+
 class LessonForm(ModelForm):
     class Meta:
         model = Lesson
@@ -252,14 +189,12 @@ class LessonForm(ModelForm):
             'order': forms.NumberInput(attrs={'class': 'inp', 'min': 1}),
         }
 
-
 class LessonContentForm(ModelForm):
     class Meta:
         model = LessonContent
         fields = ['body']
         labels = {'body': 'المحتوى النصّي'}
         widgets = {'body': forms.Textarea(attrs={'class': 'inp', 'rows': 8})}
-
 
 class QuestionForm(ModelForm):
     class Meta:
@@ -282,18 +217,18 @@ class QuestionForm(ModelForm):
             'correct': forms.Select(attrs={'class': 'inp'}),
         }
 
-
 # ===================== Helpers =====================
+
 def get_offering_or_404(term_id, subject_id):
     return get_object_or_404(SubjectOffering, term_id=term_id, subject_id=subject_id)
 
-
 # ===================== قائمة الدروس + CRUD =====================
+
 def lessons_list_view(request, term_id, subject_id):
     offering = get_offering_or_404(term_id, subject_id)
     lessons = (
         offering.lessons
-        .annotate(question_count=Count('questions', distinct=True))  # ← عدد الأسئلة لكل درس
+        .annotate(question_count=Count('questions', distinct=True))
         .order_by('order', 'id')
     )
     return render(request, 'lessons_list.html', {
@@ -302,7 +237,6 @@ def lessons_list_view(request, term_id, subject_id):
         'subject': offering.subject,
         'lessons': lessons,
     })
-
 
 def lesson_create_view(request, term_id, subject_id):
     offering = get_offering_or_404(term_id, subject_id)
@@ -318,7 +252,6 @@ def lesson_create_view(request, term_id, subject_id):
         form = LessonForm()
     return render(request, 'lesson_form.html', {'offering': offering, 'form': form, 'mode': 'create'})
 
-
 def lesson_update_view(request, term_id, subject_id, lesson_id):
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
@@ -331,7 +264,6 @@ def lesson_update_view(request, term_id, subject_id, lesson_id):
         form = LessonForm(instance=lesson)
     return render(request, 'lesson_form.html', {'offering': offering, 'form': form, 'mode': 'update', 'lesson': lesson})
 
-
 def lesson_delete_view(request, term_id, subject_id, lesson_id):
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
@@ -340,12 +272,11 @@ def lesson_delete_view(request, term_id, subject_id, lesson_id):
         return redirect('lessons_list', term_id=term_id, subject_id=subject_id)
     return render(request, 'lesson_confirm_delete.html', {'offering': offering, 'lesson': lesson})
 
-
 # ===================== إدارة الدرس (تحرير محتوى + أسئلة) =====================
+
 def lesson_manage_view(request, term_id, subject_id, lesson_id):
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
-
     content, _ = LessonContent.objects.get_or_create(lesson=lesson)
 
     # تحديث المحتوى
@@ -397,18 +328,16 @@ def lesson_manage_view(request, term_id, subject_id, lesson_id):
         'SECTION_CHOICES': SECTION_CHOICES,
     })
 
-
 # ===================== العرض الحقيقي (قراءة فقط) =====================
+
 def lesson_detail_view(request, term_id, subject_id, lesson_id):
-    """يعرض محتوى الدرس + يسمح بتحريره الخفيف (Bold/تنظيف) وحفظه."""
+    """يعرض محتوى الدرس ويحفظه."""
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
-    # تأكد من وجود كائن المحتوى
     content, _ = LessonContent.objects.get_or_create(lesson=lesson)
 
     if request.method == 'POST' and request.POST.get('form_name') == 'save_content':
         body_html = request.POST.get('body_html', '').strip()
-        # ملاحظة أمنية: هذا HTML سيُعرض بـ |safe في القالب. لا تلصق HTML غير موثوق من مصادر خارجية.
         content.body = body_html
         content.save()
         return redirect('lesson_detail', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
@@ -418,10 +347,8 @@ def lesson_detail_view(request, term_id, subject_id, lesson_id):
         'term': offering.term,
         'subject': offering.subject,
         'lesson': lesson,
-        'content': content,  # مضمون HTML
+        'content': content,
     })
-
-
 
 def lesson_questions_view(request, term_id, subject_id, lesson_id):
     """
@@ -433,7 +360,6 @@ def lesson_questions_view(request, term_id, subject_id, lesson_id):
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
 
-    # استقبل القسم المختار من GET أو POST (أثناء التصحيح)
     section = request.GET.get('section') or request.POST.get('section') or 'FULL'
 
     base_qs = lesson.questions.all()
@@ -441,7 +367,7 @@ def lesson_questions_view(request, term_id, subject_id, lesson_id):
         qs = base_qs.filter(section__in=['FIRST', 'FULL'])
     elif section == 'SECOND':
         qs = base_qs.filter(section__in=['SECOND', 'FULL'])
-    else:  # FULL أو أي قيمة غير معروفة
+    else:
         section = 'FULL'
         qs = base_qs.filter(section__in=['FIRST', 'SECOND', 'FULL'])
 
@@ -473,8 +399,6 @@ def lesson_questions_view(request, term_id, subject_id, lesson_id):
         'graded': graded,
         'score': score,
         'total': total,
-        'section': section,           # <-- نمرّر القسم المختار للقالب
+        'section': section,
         'SECTION_CHOICES': SECTION_CHOICES,
     })
-
-

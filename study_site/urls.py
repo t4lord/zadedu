@@ -1,48 +1,45 @@
-# study_site/urls.py
 from django.contrib import admin
 from django.urls import path
-from edu.views import (
-    home_view, select_term_view, set_term_view, change_term_view, term_subjects_view,
-    lessons_list_view, lesson_create_view, lesson_update_view, lesson_delete_view, lesson_manage_view,
-    lesson_detail_view, lesson_questions_view,healthz, select_year_term_view, set_active_term_view, clear_active_term_view, diag_year_term,
-    select_year_term_view, set_active_term_view, clear_active_term_view,
-    subjects_grid_view,  # صفحتك لعرض مواد الفصل
-    diag_db, diag_models, diag_year_term,  # تشخيص     # تشخيص اختياري
+from edu import views as V
 
-)
+# لو subjects_grid_view غير معرّف، نستخدم term_subjects_view كبديل آمن
+SUBJECTS_GRID = getattr(V, "subjects_grid_view", V.term_subjects_view)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
 
-    path('healthz', healthz, name='healthz'),
+    # صحّة
+    path("healthz", V.healthz, name="healthz"),
 
-    path('', select_term_view, name='home'),
-    path('', home_view, name='home'),
-    path('select-term/', select_term_view, name='select_term'),
-    path('set-term/', set_term_view, name='set_term'),
-    path('change-term/', change_term_view, name='change_term'),
+    # اختيار السنة والفصل (النظام الجديد)
+    path("", V.select_year_term_view, name="select_year_term"),
+    path("set-term/", V.set_active_term_view, name="set_active_term"),
+    path("change-term/", V.clear_active_term_view, name="clear_active_term"),
 
-    path('term/<int:term_id>/subjects/', term_subjects_view, name='term_subjects'),
+    # صفحة مناهج الفصل (grid)
+    path("term/<int:term_id>/", SUBJECTS_GRID, name="subjects_grid"),
+    path("term/<int:term_id>/subjects/", V.term_subjects_view, name="term_subjects"),
+
+    # نظام الاختيار القديم (إبقائه متاحًا لمن يحتاجه)
+    path("select-term/", V.select_term_view, name="select_term"),
+    path("set-term-legacy/", V.set_term_view, name="set_term"),
+    path("change-term-legacy/", V.change_term_view, name="change_term"),
 
     # دروس المادة داخل الفصل (CRUD)
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/', lessons_list_view, name='lessons_list'),
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/create/', lesson_create_view, name='lesson_create'),
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/edit/', lesson_update_view, name='lesson_update'),
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/delete/', lesson_delete_view, name='lesson_delete'),
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/", V.lessons_list_view, name="lessons_list"),
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/create/", V.lesson_create_view, name="lesson_create"),
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/edit/", V.lesson_update_view, name="lesson_update"),
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/delete/", V.lesson_delete_view, name="lesson_delete"),
 
-    # إدارة الدرس (تحرير)
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/', lesson_manage_view, name='lesson_manage'),
+    # إدارة الدرس (تحرير المحتوى + الأسئلة)
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/", V.lesson_manage_view, name="lesson_manage"),
 
-    # العرض الحقيقي (قراءة فقط)
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/view/', lesson_detail_view, name='lesson_detail'),
-    path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/questions/', lesson_questions_view, name='lesson_questions'),
-    path("", select_year_term_view, name="select_year_term"),
-    path("set-term/", set_active_term_view, name="set_active_term"),
-    path("change-term/", clear_active_term_view, name="clear_active_term"),
-    path("diag-year-term/", diag_year_term),
+    # العرض الحقيقي + الأسئلة
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/view/", V.lesson_detail_view, name="lesson_detail"),
+    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/questions/", V.lesson_questions_view, name="lesson_questions"),
 
-
-    path("term/<int:term_id>/", subjects_grid_view, name="subjects_grid"),
-    path("diag-db/", diag_db),
-    path("diag-models/", diag_models),
+    # تشخيص
+    path("diag-db/", V.diag_db),
+    path("diag-models/", V.diag_models),
+    path("diag-year-term/", V.diag_year_term),
 ]
