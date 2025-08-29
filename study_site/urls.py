@@ -42,4 +42,5 @@ urlpatterns = [
     path("diag-db/", V.diag_db),
     path("diag-models/", V.diag_models),
     path("diag-year-term/", V.diag_year_term),
+
 ]
