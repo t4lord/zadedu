@@ -79,7 +79,9 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
+DEFAULT_SUBJECTS = [
+    "التفسير", "الحديث", "الفقه", "العقيدة", "النحو", "البلاغة", "التربية الإسلامية",
+]
 
 if not DEBUG:
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True

@@ -26,8 +26,18 @@
           <select name="year" required>
             <option value="" disabled selected>اختر السنة</option>
             {% for y in years %}
-              <option value="{{ y.number }}">{{ y }}</option>
+              <h3>السنة: {{ y }}</h3>
+              {% for t in y.term_set.all %} {# عدّل related_name إذا مختلف #}
+                <form method="post" action="{% url 'set_active_term' %}" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="term_id" value="{{ t.id }}">
+                  <button type="submit">الفصل {{ t.get_number_display|default:t.number }}</button>
+                </form>
+              {% empty %}
+                <div>لا توجد فصول لهذه السنة.</div>
+              {% endfor %}
             {% endfor %}
+
           </select>
         </div>
         <div class="col">

@@ -80,7 +80,9 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
+DEFAULT_SUBJECTS = [
+    "التفسير", "الحديث", "الفقه", "العقيدة", "النحو", "البلاغة", "التربية الإسلامية",
+]
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
