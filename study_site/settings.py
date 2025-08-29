@@ -58,13 +58,29 @@ DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
 USE_POOLER = os.getenv("USE_POOLER", "0") == "1"   # لو استخدمت -pooler لاحقًا
 CONN_MAX_AGE = 0 if USE_POOLER else 300           # Neon ينام بعد ~5 دقائق
 
-DATABASES = {
-    "default": dj_database_url.config(
-        default=DEFAULT_SQLITE_URL,
-        conn_max_age=CONN_MAX_AGE,
-        ssl_require=True,
-    )
-}
+# قاعدة البيانات: Postgres إذا وُجد DATABASE_URL، وإلا SQLite (بدون SSL)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,     # رابط Neon من البيئة
+            conn_max_age=CONN_MAX_AGE,
+            ssl_require=True,         # نفعّله فقط مع Postgres
+        )
+    }
+    if os.getenv("DEBUG", "0") != "1":
+        DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
 if not DEBUG:
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 

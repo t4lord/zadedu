@@ -11,6 +11,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('healthz', healthz, name='healthz'),
+
     path('', select_term_view, name='home'),
     path('', home_view, name='home'),
     path('select-term/', select_term_view, name='select_term'),

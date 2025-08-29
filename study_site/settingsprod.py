@@ -58,24 +58,29 @@ TEMPLATES = [
 WSGI_APPLICATION = "study_site.wsgi.application"
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+# قاعدة البيانات: Postgres إذا وُجد DATABASE_URL، وإلا SQLite (بدون SSL)
+
+USE_POOLER = os.getenv("USE_POOLER", "0") == "1"
+CONN_MAX_AGE = 0 if USE_POOLER else 300  # مناسب مع نوم Neon
+
 if DATABASE_URL:
-    # إنتاج/Render: استخدم Postgres من Neon
-    import dj_database_url
     DATABASES = {
         "default": dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True,
+            default=DATABASE_URL,     # رابط Neon من البيئة
+            conn_max_age=CONN_MAX_AGE,
+            ssl_require=True,         # نفعّله فقط مع Postgres
         )
     }
+    if os.getenv("DEBUG", "0") != "1":
+        DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
-    # محلي: fallback إلى SQLite حتى لو ما فيه DATABASE_URL
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
