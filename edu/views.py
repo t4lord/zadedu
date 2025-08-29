@@ -1,5 +1,6 @@
 # edu/views.py
 from django.apps import apps
+from django.db import connection
 from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
 from django.db.models import Prefetch
@@ -12,6 +13,7 @@ from django.http import HttpResponse, JsonResponse
 from edu import models
 
 def healthz(request): return HttpResponse("ok")
+
 
 SESSION_KEY = 'selected_term_id'
 COOKIE_KEY = "active_term_id"
@@ -33,6 +35,11 @@ def _find_year_term_models_safe():
             TermModel = m
             return YearModel, TermModel, "year", None
     return None, None, None, "تعذر اكتشاف موديلات السنة/الفصل: رجاءً تأكد أن موديل (الفصل) لديه IntegerField اسمه number و ForeignKey اسمه year."
+
+def subjects_grid_view(request, term_id):
+    # TODO: هنا لاحقًا اعرض بطاقات المواد الخاصة بالترم
+    # مؤقتًا نرجّع المستخدم لصفحة اختيار الترم بدل ما ينفجر السيرفر.
+    return redirect("select_year_term")
 
 def diag_db(request):
     """يعرض معلومات اتصال القاعدة بدون أسرار."""
