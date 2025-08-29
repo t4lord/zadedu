@@ -5,21 +5,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-_2rfpq5k=3lw#zx3x!v@3j#u#s0vlun9%bemt%_7tl(ub&t_m_'
 DEBUG = True
 
-<<<<<<< HEAD
-#ALLOWED_HOSTS = []
-=======
-# ALLOWED_HOSTS = []
->>>>>>> ea62e24 (feat: <وصف التعديل>)
 ALLOWED_HOSTS = ["zadedu.onrender.com"]
 CSRF_TRUSTED_ORIGINS = [
     "https://zadedu.onrender.com"
 ]
-<<<<<<< HEAD
-
 
 # Application definition
-=======
->>>>>>> ea62e24 (feat: <وصف التعديل>)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
