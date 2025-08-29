@@ -1,58 +1,47 @@
-
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>اختيار السنة والفصل</title>
   <style>
-    body{font-family:system-ui,Tahoma; margin:2rem;}
-    .card{border:1px solid #ddd; padding:1rem; border-radius:12px; max-width:640px}
-    .row{display:flex; gap:1rem; flex-wrap:wrap; margin-top:1rem;}
-    .col{flex:1 1 240px;}
-    button{padding:.7rem 1rem; border:0; border-radius:10px; background:#0a7; color:#fff; cursor:pointer}
-    select,button{width:100%; font-size:1rem}
-    h1{margin-top:0}
+    body{font-family:system-ui,Tahoma;margin:2rem}
+    .year{border:1px solid #eee;border-radius:12px;padding:1rem;margin-bottom:1rem}
+    .grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+    .btn{padding:.6rem .9rem;border:1px solid #ccc;border-radius:10px;background:#fff;cursor:pointer}
+    .muted{color:#666}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>اختر السنة والفصل (مرة واحدة)</h1>
-    <form method="post" action="{% url 'set_term' %}">
-      {% csrf_token %}
-      <div class="row">
-        <div class="col">
-          <label>السنة</label>
-          <select name="year" required>
-            <option value="" disabled selected>اختر السنة</option>
-            {% for y in years %}
-              <h3>السنة: {{ y }}</h3>
-              {% for t in y.term_set.all %} {# عدّل related_name إذا مختلف #}
-                <form method="post" action="{% url 'set_active_term' %}" style="display:inline">
-                  {% csrf_token %}
-                  <input type="hidden" name="term_id" value="{{ t.id }}">
-                  <button type="submit">الفصل {{ t.get_number_display|default:t.number }}</button>
-                </form>
-              {% empty %}
-                <div>لا توجد فصول لهذه السنة.</div>
-              {% endfor %}
-            {% endfor %}
+  <h1>اختر السنة ثم الفصل</h1>
 
-          </select>
-        </div>
-        <div class="col">
-          <label>الفصل</label>
-          <select name="term" required>
-            <option value="" disabled selected>اختر الفصل</option>
-            <option value="1">الفصل الأول</option>
-            <option value="2">الفصل الثاني</option>
-          </select>
+  {% if year_groups %}
+    {% for g in year_groups %}
+      <div class="year">
+        <h3>السنة: {{ g.year }}</h3>
+        <div class="grid">
+          {% for t in g.terms %}
+            <form method="post" action="{% url 'set_active_term' %}" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="term_id" value="{{ t.id }}">
+              <button class="btn" type="submit">
+                الفصل {{ t.get_number_display|default:t.number }}
+              </button>
+            </form>
+          {% empty %}
+            <div class="muted">لا توجد فصول لهذه السنة.</div>
+          {% endfor %}
         </div>
       </div>
-      <div style="margin-top:1rem">
-        <button type="submit">تأكيد</button>
-      </div>
-    </form>
-  </div>
+    {% endfor %}
+  {% else %}
+    <p>لا توجد سنين بعد. أضِفها من <a href="/admin/">لوحة الإدارة</a>.</p>
+  {% endif %}
+
+  {% if active_term %}
+    <p class="muted">
+      الاختيار الحالي: سنة {{ active_term.year }} — فصل {{ active_term.get_number_display|default:active_term.number }}
+      — <a href="{% url 'clear_active_term' %}">تغيير</a>
+    </p>
+  {% endif %}
 </body>
 </html>

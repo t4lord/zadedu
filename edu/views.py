@@ -1,13 +1,13 @@
 # edu/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
+from django.db.models import Prefetch
 from django.forms import ModelForm
 from django.conf import settings
 from django.views.decorators.http import require_POST
 from .models import Year, Term, SubjectOffering,Lesson, LessonContent, Question, SECTION_CHOICES
-
-
 from django.http import HttpResponse
+
 def healthz(request): return HttpResponse("ok")
 
 SESSION_KEY = 'selected_term_id'
@@ -15,11 +15,28 @@ COOKIE_KEY = "active_term_id"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 180  # 180 يوم
 
 def select_year_term_view(request):
-    years = Year.objects.all().order_by("id")
+    # حدّد اسم العلاقة العكسيّة (terms أو term_set) بشكل آمن
+    year_fk = Term._meta.get_field("year")
+    rel_name = year_fk.remote_field.related_name or "term_set"
+
+    years_qs = Year.objects.all().order_by("id").prefetch_related(
+        Prefetch(rel_name, queryset=Term.objects.order_by("number"))
+    )
+
+    # ابنِ قائمة آمنة للقالب: [(year, [terms...]), ...]
+    year_groups = []
+    for y in years_qs:
+        terms_manager = getattr(y, rel_name)  # terms أو term_set
+        year_groups.append({
+            "year": y,
+            "terms": list(terms_manager.all()),
+        })
+
     active_id = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
     active_term = Term.objects.filter(pk=active_id).select_related("year").first()
+
     return render(request, "select_year_term.html", {
-        "years": years,
+        "year_groups": year_groups,
         "active_term": active_term,
     })
 
@@ -27,9 +44,9 @@ def select_year_term_view(request):
 def set_active_term_view(request):
     term_id = request.POST.get("term_id")
     term = get_object_or_404(Term, pk=term_id)
-    # خزّن الاختيار
+
     request.session[COOKIE_KEY] = str(term.id)
-    resp = redirect("subjects_grid", term_id=term.id)  # غيّر الاسم لو مسارك مختلف
+    resp = redirect("subjects_grid", term_id=term.id)  # عدّل الاسم لو مختلف عندك
     resp.set_cookie(
         COOKIE_KEY, str(term.id),
         max_age=COOKIE_MAX_AGE,
@@ -37,6 +54,12 @@ def set_active_term_view(request):
         samesite="Lax",
         httponly=False,
     )
+    return resp
+
+def clear_active_term_view(request):
+    resp = redirect("select_year_term")
+    request.session.pop(COOKIE_KEY, None)
+    resp.delete_cookie(COOKIE_KEY)
     return resp
 # ===================== جلسة الفصل =====================
 def home_view(request):

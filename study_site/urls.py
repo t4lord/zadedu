@@ -4,7 +4,7 @@ from django.urls import path
 from edu.views import (
     home_view, select_term_view, set_term_view, change_term_view, term_subjects_view,
     lessons_list_view, lesson_create_view, lesson_update_view, lesson_delete_view, lesson_manage_view,
-    lesson_detail_view, lesson_questions_view,healthz
+    lesson_detail_view, lesson_questions_view,healthz, select_year_term_view, set_active_term_view, clear_active_term_view,
 )
 
 urlpatterns = [
@@ -32,5 +32,7 @@ urlpatterns = [
     # العرض الحقيقي (قراءة فقط)
     path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/view/', lesson_detail_view, name='lesson_detail'),
     path('term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/questions/', lesson_questions_view, name='lesson_questions'),
-    
+    path("", select_year_term_view, name="select_year_term"),
+    path("set-term/", set_active_term_view, name="set_active_term"),
+    path("change-term/", clear_active_term_view, name="clear_active_term"),
 ]
