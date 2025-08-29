@@ -3,16 +3,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
 from django.forms import ModelForm
 
-from .models import (
-    Year, Term, SubjectOffering,
-    Lesson, LessonContent, Question, SECTION_CHOICES
-)
-<<<<<<< HEAD
+from .models import Year, Term, SubjectOffering,Lesson, LessonContent, Question, SECTION_CHOICES
 
-=======
+
 from django.http import HttpResponse
 def healthz(request): return HttpResponse("ok")
->>>>>>> ea62e24 (feat: <وصف التعديل>)
+
 SESSION_KEY = 'selected_term_id'
 
 

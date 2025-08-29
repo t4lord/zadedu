@@ -9,14 +9,10 @@ from edu.views import (
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-    path('healthz', views.healthz, name='healthz'),
->>>>>>> ea62e24 (feat: <وصف التعديل>)
-=======
+
     path('healthz', healthz, name='healthz'),
->>>>>>> 8c8371b (Add migrations for edu models)
+
+    path('healthz', healthz, name='healthz'),
     path('', select_term_view, name='home'),
     path('', home_view, name='home'),
     path('select-term/', select_term_view, name='select_term'),
