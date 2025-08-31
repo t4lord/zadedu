@@ -5,23 +5,35 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>دروس المادة — {{ subject.name }} (السنة {{ term.year }} / الفصل {{ term.get_number_display }})</title>
   <style>
-    :root { --bg:#fff; --bd:#e7e7e7; --ink:#111; --muted:#666; --pill:#eef; --pillbd:#dde; }
+    :root { --bg:#fff; --bd:#e7e7e7; --ink:#111; --muted:#666; --pill:#eef; --pillbd:#dde; --primary:#2563eb; }
     body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg); }
     .head{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
     .badge{display:inline-block; background:var(--pill); border:1px solid var(--pillbd); padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
-    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer; background:#fff}
+    .btn{padding:.45rem .75rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer; background:#fff; font-size:.9rem}
     .btn:hover{background:#f7f7f7}
+    .btn--danger{color:#b91c1c; border-color:#fca5a5}
+    .btn--danger:hover{background:#fee2e2}
+    .btn--icon{display:inline-flex; align-items:center; gap:.35rem; padding:.4rem .6rem}
     .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff}
     h1{margin:.6rem 0 0 0}
-    .toolbar{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin:.8rem 0}
+    .toolbar{margin:.8rem 0}
     .inp{width:280px; max-width:100%; padding:.55rem .7rem; border:1px solid #ccc; border-radius:10px}
     .grid{display:grid; gap:.8rem; grid-template-columns:1fr}
     @media(min-width:880px){ .grid{grid-template-columns:1fr 1fr} }
     .lesson{border:1px solid var(--bd); border-radius:12px; padding:.9rem; display:flex; flex-direction:column; gap:.45rem}
     .lesson__meta{font-size:.9rem; color:var(--muted); display:flex; gap:.6rem; flex-wrap:wrap}
     .lesson__title{font-weight:700}
-    .lesson__actions{margin-top:.4rem; display:flex; gap:.5rem; flex-wrap:wrap}
+    .lesson__actions{margin-top:.4rem; display:flex; gap:.4rem; flex-wrap:wrap}
     .empty{color:var(--muted); padding:1rem 0}
+    .fab{
+      position:fixed; inset-inline-end:24px; inset-block-end:24px;
+      width:56px; height:56px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:24px; text-decoration:none;
+      background:var(--primary); color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.15);
+      border:1px solid rgba(0,0,0,.06);
+    }
+    .fab:hover{filter:brightness(0.95)}
   </style>
 </head>
 <body>
@@ -57,7 +69,12 @@
               {% endif %}
             </div>
             <div class="lesson__actions">
-              <a class="btn" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">👁️ عرض الدرس</a>
+              <a class="btn btn--icon" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">👁️ عرض</a>
+              <a class="btn btn--icon" href="{% url 'lesson_manage' term.id subject.id lesson.id %}">⚙️ إدارة</a>
+              <a class="btn btn--icon" href="{% url 'lesson_update' term.id subject.id lesson.id %}">✏️ تعديل</a>
+              <a class="btn btn--icon btn--danger"
+                 href="{% url 'lesson_delete' term.id subject.id lesson.id %}"
+                 onclick="return confirm('هل أنت متأكد أنك تريد حذف هذا الدرس؟');">🗑️ حذف</a>
             </div>
           </article>
         {% endfor %}
@@ -67,8 +84,10 @@
     {% endif %}
   </section>
 
+  <!-- زر عائم لإضافة درس جديد -->
+  <a class="fab" href="{% url 'lesson_create' term.id subject.id %}" aria-label="إضافة درس">+</a>
+
   <script>
-    // تصفية الدروس حسب العنوان (عميل فقط)
     const search = document.getElementById('search');
     const grid   = document.getElementById('lessonsGrid');
     search?.addEventListener('input', () => {

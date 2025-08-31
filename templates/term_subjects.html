@@ -71,8 +71,7 @@
         class="card {% if off.is_today %}is-today{% endif %}"
         data-subject="{{ off.subject.name|escape }}"
         data-is-today="{{ off.is_today|yesno:'1,0' }}"
-        data-sched="{% if off.sched_days %}{{ off.sched_days|join:',' }}{% else %}{% endif %}"  <!-- CHANGED: إزالة default:list واستخدام شرط -->
-      >
+        data-sched="{% if off.sched_days %}{{ off.sched_days|join:',' }}{% else %}{% endif %}" >
 
         {% if off.is_today %}<div class="tag">مقرّرة اليوم</div>{% endif %}
 
