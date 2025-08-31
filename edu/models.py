@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 class Year(models.Model):
     number = models.PositiveSmallIntegerField(choices=[(1, 'السنة الأولى'), (2, 'السنة الثانية')])
@@ -130,3 +131,47 @@ class SubjectSchedule(models.Model):
 
     def __str__(self):
         return f"{self.offering} - {self.get_weekday_display()}" + (f" #{self.lecture_no}" if self.lecture_no else "")
+
+# --- Weekly quiz models (independent from Lesson) ---
+
+class QuestionType(models.TextChoices):
+    MCQ = 'MCQ', 'اختيارات'
+    TF  = 'TF',  'صح/خطأ'
+
+class Week(models.Model):
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='weeks')
+    number = models.PositiveSmallIntegerField()
+    class Meta:
+        unique_together = ('term', 'number')
+        ordering = ['term_id', 'number']
+    def __str__(self):
+        return f"Term {self.term_id} - Week {self.number}"
+
+class WeeklyQuiz(models.Model):
+    offering = models.ForeignKey(SubjectOffering, on_delete=models.CASCADE, related_name='weekly_quizzes')
+    week = models.ForeignKey(Week, on_delete=models.CASCADE, related_name='quizzes')
+    title = models.CharField(max_length=200, blank=True)
+    is_published = models.BooleanField(default=False)
+    class Meta:
+        unique_together = ('offering', 'week')
+        ordering = ['offering_id', 'week_id']
+    def __str__(self):
+        return self.title or f"{self.offering.subject.name} - أسبوع {self.week.number}"
+
+class WeeklyQuestion(models.Model):
+    quiz = models.ForeignKey(WeeklyQuiz, on_delete=models.CASCADE, related_name='questions')
+    text = models.TextField()
+    qtype = models.CharField(max_length=3, choices=QuestionType.choices, default=QuestionType.MCQ)
+    # لـ TF فقط:
+    correct_bool = models.BooleanField(null=True, blank=True)
+    order = models.PositiveSmallIntegerField(default=0)
+    class Meta:
+        ordering = ['order', 'id']
+
+class WeeklyChoice(models.Model):
+    question = models.ForeignKey(WeeklyQuestion, on_delete=models.CASCADE, related_name='choices')
+    text = models.CharField(max_length=255)
+    is_correct = models.BooleanField(default=False)
+    order = models.PositiveSmallIntegerField(default=0)
+    class Meta:
+        ordering = ['order', 'id']

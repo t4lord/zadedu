@@ -36,11 +36,10 @@ urlpatterns = [
 
     # العرض الحقيقي + الأسئلة
     path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/view/", V.lesson_detail_view, name="lesson_detail"),
-    path("term/<int:term_id>/subject/<int:subject_id>/lessons/<int:lesson_id>/questions/", V.lesson_questions_view, name="lesson_questions"),
-
     # تشخيص
     path("diag-db/", V.diag_db),
     path("diag-models/", V.diag_models),
     path("diag-year-term/", V.diag_year_term),
-
+    path("term/<int:term_id>/subject/<int:subject_id>/weekly/",V.weekly_quiz_manage_view, name="weekly_quiz_manage"),
+    path('term/<int:term_id>/subject/<int:subject_id>/exam/<str:scope>/',V.exam_take_view,name='exam_take'),
 ]

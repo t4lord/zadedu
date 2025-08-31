@@ -1,15 +1,14 @@
 from django.contrib import admin, messages
 from django.conf import settings
 from django.apps import apps
-
 from .models import (
-    Year, Term, Subject, SubjectOffering, Lesson, LessonContent, Question, SubjectSchedule
+    Year, Term, Subject, SubjectOffering, Lesson, LessonContent, SubjectSchedule,Week, WeeklyQuiz, WeeklyQuestion
 )
 
 # سجّل النماذج الأساسية
 admin.site.register(Lesson)
 admin.site.register(LessonContent)
-admin.site.register(Question)
+
 
 # ===== أكشن: إنشاء فصول 1 و2 لكل سنة (Idempotent) =====
 @admin.action(description="إنشاء فصول (1 و2) للسنة/السنين المحددة (لن يكرر الموجود)")
@@ -78,3 +77,20 @@ class SubjectScheduleAdmin(admin.ModelAdmin):
     list_display = ('offering', 'weekday', 'lecture_no')
     list_filter  = ('weekday', 'offering__term__year__number', 'offering__term__number', 'offering__subject__name')
     search_fields = ('offering__subject__name',)
+
+
+
+@admin.register(Week)
+class WeekAdmin(admin.ModelAdmin):
+    list_display = ('term', 'number')
+    list_filter = ('term',)
+
+class WeeklyQuestionInline(admin.TabularInline):
+    model = WeeklyQuestion
+    extra = 0
+
+@admin.register(WeeklyQuiz)
+class WeeklyQuizAdmin(admin.ModelAdmin):
+    list_display = ('offering', 'week', 'title', 'is_published')
+    list_filter = ('offering__term', 'offering__subject', 'week__number', 'is_published')
+    inlines = [WeeklyQuestionInline]

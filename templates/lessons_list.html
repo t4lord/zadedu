@@ -1,100 +1,84 @@
-
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-    <style>
-  .lesson-link { text-decoration: none; }
-  .lesson-link:hover { text-decoration: underline; }
-
-  .edit-pencil {
-    margin-inline-start: .4rem;
-    font-size: .95rem;
-    text-decoration: none;
-    color: #666;
-  }
-  .edit-pencil:hover { color: #000; }
-</style>
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>دروس {{ subject.name }} — {{ term }}</title>
+  <title>دروس المادة — {{ subject.name }} (السنة {{ term.year }} / الفصل {{ term.get_number_display }})</title>
   <style>
-    body{font-family:system-ui,Tahoma; margin:2rem;}
-    .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
-    .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem}
-    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block}
+    :root { --bg:#fff; --bd:#e7e7e7; --ink:#111; --muted:#666; --pill:#eef; --pillbd:#dde; }
+    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg); }
+    .head{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
+    .badge{display:inline-block; background:var(--pill); border:1px solid var(--pillbd); padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer; background:#fff}
     .btn:hover{background:#f7f7f7}
-    table{width:100%; border-collapse:collapse; margin-top:1rem}
-    th,td{border-bottom:1px solid #eee; padding:.6rem; text-align:right}
-    .actions a{margin-inline-start:.4rem}
+    .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff}
+    h1{margin:.6rem 0 0 0}
+    .toolbar{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin:.8rem 0}
+    .inp{width:280px; max-width:100%; padding:.55rem .7rem; border:1px solid #ccc; border-radius:10px}
+    .grid{display:grid; gap:.8rem; grid-template-columns:1fr}
+    @media(min-width:880px){ .grid{grid-template-columns:1fr 1fr} }
+    .lesson{border:1px solid var(--bd); border-radius:12px; padding:.9rem; display:flex; flex-direction:column; gap:.45rem}
+    .lesson__meta{font-size:.9rem; color:var(--muted); display:flex; gap:.6rem; flex-wrap:wrap}
+    .lesson__title{font-weight:700}
+    .lesson__actions{margin-top:.4rem; display:flex; gap:.5rem; flex-wrap:wrap}
+    .empty{color:var(--muted); padding:1rem 0}
   </style>
-  <style>
-  .q-badge{
-    display:inline-block; min-width:2.2rem; text-align:center;
-    padding:.15rem .45rem; border-radius:999px; font-size:.9rem;
-    border:1px solid #ddd; color:#555; text-decoration:none;
-  }
-  .q-badge.has{ background:#e9f9ee; border-color:#bfe8c8; color:#176c3a; }
-  .q-badge.empty{ background:#fafafa; color:#999; }
-</style>
 </head>
 <body>
-  <div class="header">
+  <div class="head">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
       <span class="badge">الفصل: {{ term.get_number_display }}</span>
       <span class="badge">المادة: {{ subject.name }}</span>
     </div>
     <div>
-      <a class="btn" href="{% url 'term_subjects' term.id %}">⬅ رجوع للمواد</a>
-      <a class="btn" href="{% url 'lesson_create' term.id subject.id %}">➕ إضافة درس</a>
+      <a class="btn" href="{% url 'subjects_grid' term.id %}">⬅ رجوع للمواد</a>
     </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>عنوان الدرس</th>
-        <th>ترتيب</th>
-        <th>أسئلة</th>
-        <th>إدارة</th>
-      </tr>
-    </thead>
-<tbody>
-  {% for lesson in lessons %}
-    <tr>
-      <td>{{ forloop.counter }}</td>
-      <td>
-        <a class="lesson-link" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">
-          {{ lesson.title }}
-        </a>
-        <a class="edit-pencil" href="{% url 'lesson_update' term.id subject.id lesson.id %}" title="تعديل اسم الدرس">✏️</a>
-      </td>
-      <td>{{ lesson.order }}</td>
+  <h1>قائمة الدروس</h1>
 
-      <!-- عمود الأسئلة -->
-      <td>
-        {% if lesson.question_count and lesson.question_count > 0 %}
-          <a class="q-badge has" href="{% url 'lesson_questions' term.id subject.id lesson.id %}" title="عرض أسئلة الدرس">
-            ❓ {{ lesson.question_count }}
-          </a>
-        {% else %}
-          <span class="q-badge empty" title="لا توجد أسئلة">—</span>
-        {% endif %}
-      </td>
+  <div class="toolbar">
+    <input class="inp" id="search" type="search" placeholder="ابحث عن درس بالعنوان..." aria-label="بحث" />
+  </div>
 
-      <td class="actions">
-        <a class="btn" href="{% url 'lesson_manage' term.id subject.id lesson.id %}">🧰 إدارة (محتوى/أسئلة)</a>
-        <a class="btn" href="{% url 'lesson_delete' term.id subject.id lesson.id %}">🗑️ حذف</a>
-      </td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="5">لا توجد دروس بعد.</td></tr>
-  {% endfor %}
-</tbody>
+  <section class="card">
+    {% if lessons %}
+      <div class="grid" id="lessonsGrid">
+        {% for lesson in lessons %}
+          <article class="lesson" data-title="{{ lesson.title|lower }}">
+            <div class="lesson__title">📘 {{ lesson.title }}</div>
+            <div class="lesson__meta">
+              <span>المعرف: {{ lesson.id }}</span>
+              {% if lesson.content and lesson.content.body %}
+                <span>المحتوى: موجود</span>
+              {% else %}
+                <span>المحتوى: غير متوفر</span>
+              {% endif %}
+            </div>
+            <div class="lesson__actions">
+              <a class="btn" href="{% url 'lesson_detail' term.id subject.id lesson.id %}">👁️ عرض الدرس</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">لا توجد دروس بعد لهذه المادة.</div>
+    {% endif %}
+  </section>
 
-
-  </table>
+  <script>
+    // تصفية الدروس حسب العنوان (عميل فقط)
+    const search = document.getElementById('search');
+    const grid   = document.getElementById('lessonsGrid');
+    search?.addEventListener('input', () => {
+      const q = (search.value || '').trim().toLowerCase();
+      if (!grid) return;
+      [...grid.children].forEach(card => {
+        const title = card.getAttribute('data-title') || '';
+        card.style.display = title.includes(q) ? '' : 'none';
+      });
+    });
+  </script>
 </body>
 </html>

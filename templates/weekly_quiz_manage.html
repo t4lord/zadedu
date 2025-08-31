@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>أسئلة أسبوع {{ week.number }} — {{ subject.name }}</title>
+  <style>
+    :root{
+      --bg:#fff; --ink:#111; --muted:#666; --bd:#e7e7e7;
+      --badge:#eef; --badgebd:#dde;
+      --label:#f4f8ff; --labelbd:#bcd;
+      --chip:#f6f7fb; --chipbd:#dfe6ff;
+      --mcq:#7fb0ff; --tf:#2a7d46; --ok:#0a7;
+    }
+    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg)}
+    .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+    .split{display:grid; gap:1rem; grid-template-columns:1fr; margin-top:1rem}
+    @media(min-width:980px){ .split{grid-template-columns:1.25fr .75fr} }
+    .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff}
+    .badge{display:inline-block; background:var(--badge); border:1px solid var(--badgebd); padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
+    .btn{padding:.45rem .75rem; border-radius:10px; border:1px solid #ccc; background:#fff; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:.35rem}
+    .btn:hover{background:#f7f7f7}
+    .btn--danger{border-color:#f3d0d0}
+    .btn--danger:hover{background:#fff6f6}
+    .inp{width:100%; padding:.55rem .7rem; border:1px solid #ccc; border-radius:10px}
+    h1{margin:.6rem 0 0}
+    h2{margin:0 0 .6rem 0; font-size:1.06rem}
+    .muted{color:var(--muted)}
+    .toolbar{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+    .chip{border:1px solid var(--chipbd); background:var(--chip); border-radius:999px; padding:.28rem .7rem; cursor:pointer; font-size:.92rem}
+    .chip.active{background:#eaf1ff; border-color:#aac7ff}
+
+    /* بطاقات الأسئلة مع فصل بصري قوي */
+    #qList{display:flex; flex-direction:column; gap:1rem}
+    .qcard{
+      position:relative;
+      border:1px solid var(--bd); border-radius:14px; padding:1rem;
+      background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.03);
+      border-inline-start:8px solid transparent;
+    }
+    .qcard--mcq{border-inline-start-color:var(--mcq); background:
+      linear-gradient(90deg, rgba(127,176,255,.10) 0%, transparent 38%)}
+    .qcard--tf{border-inline-start-color:var(--tf); background:
+      linear-gradient(90deg, rgba(42,125,70,.08) 0%, transparent 38%)}
+
+    .qhead{display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap}
+    .labels{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
+    .label{display:inline-block; background:var(--label); border:1px solid var(--labelbd); border-radius:999px; padding:.1rem .6rem; font-size:.88rem}
+    .qnum{font-weight:700}
+    .qtitle{font-weight:700; margin:.4rem 0 .6rem 0; font-size:1.02rem}
+    .opts{display:flex; flex-direction:column; gap:.45rem}
+    .opt{border:1px dashed #e6e6e6; border-radius:10px; padding:.5rem .6rem}
+    .ok{color:var(--ok); font-weight:600}
+    .opthdr{display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap}
+    .optedit{display:none; margin-top:.35rem}
+    .optedit .inp{min-width:220px}
+    .qedit{display:none; margin-top:.6rem; border-top:1px dashed var(--bd); padding-top:.6rem}
+
+    /* segmented */
+    .seg{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
+    .seg__btn{padding:.45rem .7rem; border-radius:999px; border:1px solid #ccc; background:#fff; cursor:pointer; font-weight:600}
+    .seg__btn.active{background:#e9f2ff; border-color:#7fb0ff}
+    .seg__btn.ok.active{background:#e9f9ee; border-color:#2a7d46; color:#2a7d46}
+
+    .weekctrl{display:flex; gap:.4rem; align-items:center}
+    .wkbtn{width:36px; height:36px; border-radius:50%; border:1px solid #ccc; background:#fff; cursor:pointer; font-weight:700}
+    .wknum{min-width:96px; text-align:center; font-weight:700}
+  </style>
+</head>
+<body>
+
+  {% if qform.errors %}
+  <div style="border:1px solid #f3d0d0; background:#fff6f6; border-radius:10px; padding:.6rem; margin-bottom:.6rem">
+    <strong>تحقّق من المدخلات:</strong>
+    <ul style="margin:.4rem 0 0 1rem">
+      {% for field in qform %}{% for err in field.errors %}<li>{{ err }}</li>{% endfor %}{% endfor %}
+      {% for err in qform.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      <span class="badge">المادة: {{ subject.name }}</span>
+      <span class="badge">الأسبوع: {{ week.number }}</span>
+    </div>
+    <div class="row">
+      <a class="btn" href="{% url 'subjects_grid' term.id %}">⬅ رجوع للمواد</a>
+    </div>
+  </div>
+
+  <h1>الأسئلة الأسبوعية — {{ subject.name }}</h1>
+
+  <div class="card">
+    <div class="toolbar" style="width:100%">
+      <div class="weekctrl" data-weeks="{{ WEEKS_PER_TERM }}">
+        <button class="wkbtn" id="weekPrev" type="button">◀</button>
+        <div class="wknum">أسبوع <span id="weekNum">{{ week.number }}</span></div>
+        <button class="wkbtn" id="weekNext" type="button">▶</button>
+      </div>
+
+      <div class="row" id="typeFilters" aria-label="فلترة النوع" style="margin-inline-start:auto">
+        <button class="chip active" data-type="ALL">الكل</button>
+        <button class="chip" data-type="MCQ">اختيارات</button>
+        <button class="chip" data-type="TF">صح/خطأ</button>
+      </div>
+
+      <input id="qSearch" class="inp" style="min-width:240px" type="search" placeholder="ابحث داخل نص السؤال…">
+    </div>
+  </div>
+
+  <div class="split">
+    <!-- يسار: قائمة الأسئلة -->
+    <section class="card">
+      <h2>الأسئلة ({{ questions|length }})</h2>
+      {% if questions %}
+        <div id="qList">
+          {% for q in questions %}
+            <article class="qcard qcard--{{ q.qtype|lower }}" data-type="{{ q.qtype }}" data-qid="{{ q.id }}" data-text="{{ q.text|lower }}">
+              <div class="qhead">
+                <div class="labels">
+                  <span class="label qnum">سؤال #{{ forloop.counter }}</span>
+                  <span class="label">{% if q.qtype == QuestionType.MCQ %}اختيارات{% else %}صح/خطأ{% endif %}</span>
+                </div>
+                <div class="row">
+                  <button class="btn" type="button" data-toggle="#qedit-{{ q.id }}">✏️ تعديل</button>
+                  <form method="post" onsubmit="return confirm('حذف هذا السؤال؟');">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_name" value="delete_question">
+                    <input type="hidden" name="question_id" value="{{ q.id }}">
+                    <button class="btn btn--danger" type="submit">🗑️ حذف</button>
+                  </form>
+                </div>
+              </div>
+
+              <div class="qtitle">{{ q.text }}</div>
+
+              {% if q.qtype == QuestionType.MCQ %}
+                <!-- قائمة الخيارات + تحرير/حذف فقط (تم حذف واجهة "إضافة خيار") -->
+                <div class="opts">
+                  {% for opt in q.choices.all %}
+                    <div class="opt" id="opt-{{ opt.id }}">
+                      <div class="opthdr">
+                        <div>
+                          {% if opt.is_correct %}<span class="ok">✔ صحيح</span>{% else %}<span class="muted">—</span>{% endif %}
+                          <strong>{{ opt.text }}</strong>
+                        </div>
+                        <div class="row">
+                          <button class="btn" type="button" data-toggle="#optedit-{{ opt.id }}">تعديل</button>
+                          <form method="post" onsubmit="return confirm('حذف هذا الخيار؟');">
+                            {% csrf_token %}
+                            <input type="hidden" name="form_name" value="delete_option">
+                            <input type="hidden" name="option_id" value="{{ opt.id }}">
+                            <button class="btn btn--danger" type="submit">حذف</button>
+                          </form>
+                        </div>
+                      </div>
+                      <div class="optedit" id="optedit-{{ opt.id }}">
+                        <form method="post" class="row" style="margin-top:.35rem">
+                          {% csrf_token %}
+                          <input type="hidden" name="form_name" value="edit_option">
+                          <input type="hidden" name="option_id" value="{{ opt.id }}">
+                          <input type="hidden" name="order" value="{{ opt.order|default:0 }}">
+                          <input class="inp" name="text" value="{{ opt.text }}" placeholder="نص الخيار" style="flex:1">
+                          <label class="row" style="align-items:center">صحيح؟
+                            <input type="checkbox" name="is_correct" {% if opt.is_correct %}checked{% endif %}>
+                          </label>
+                          <button class="btn" type="submit">💾 حفظ</button>
+                        </form>
+                        <small class="muted">عند تعيين خيار كصحيح، سيُلغى التعيين عن غيره تلقائيًا.</small>
+                      </div>
+                    </div>
+                  {% empty %}
+                    <div class="muted">لا توجد خيارات بعد.</div>
+                  {% endfor %}
+                </div>
+
+                <!-- تعديل نص السؤال فقط -->
+                <div class="qedit" id="qedit-{{ q.id }}">
+                  <form method="post" class="row">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_name" value="edit_question_{{ q.id }}">
+                    <input type="hidden" name="question_id" value="{{ q.id }}">
+                    <input type="hidden" name="qtype" value="MCQ">
+                    <input type="hidden" name="order" value="{{ q.order|default:0 }}">
+                    <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
+                    <button class="btn" type="submit">💾 حفظ السؤال</button>
+                  </form>
+                </div>
+
+              {% else %} {# TF #}
+                <!-- تحرير سؤال صح/خطأ بأيقونات -->
+                <div class="qedit" id="qedit-{{ q.id }}" style="display:block">
+                  <form method="post" class="row" data-tf="{{ q.id }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_name" value="edit_question_{{ q.id }}">
+                    <input type="hidden" name="question_id" value="{{ q.id }}">
+                    <input type="hidden" name="qtype" value="TF">
+                    <input type="hidden" name="order" value="{{ q.order|default:0 }}">
+                    <input type="hidden" name="correct_bool" id="cb-{{ q.id }}" value="{% if q.correct_bool is True %}2{% elif q.correct_bool is False %}3{% else %}{% endif %}">
+                    <div class="seg" aria-label="الإجابة الصحيحة">
+                      <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="2">✔ صح</button>
+                      <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="3">✗ خطأ</button>
+                    </div>
+                    <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
+                    <button class="btn" type="submit">💾 حفظ</button>
+                  </form>
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">لا توجد أسئلة لهذا الأسبوع بعد.</div>
+      {% endif %}
+    </section>
+
+    <!-- يمين: إضافة سؤال جديد -->
+    <aside class="card">
+      <h2>إضافة سؤال جديد</h2>
+      <form method="post" id="addForm">
+        {% csrf_token %}
+        <input type="hidden" name="form_name" value="add_question">
+
+        <label>نص السؤال</label>
+        {{ qform.text }}
+
+        <!-- نوع السؤال بأيقونات -->
+        <input type="hidden" name="qtype" id="qtypeHidden" value="MCQ">
+        <div class="row" style="margin-top:.5rem; align-items:flex-end">
+          <div style="flex:1">
+            <label>النوع</label>
+            <div class="seg" id="qtypeSeg">
+              <button type="button" class="seg__btn active" data-val="MCQ">اختيارات</button>
+              <button type="button" class="seg__btn" data-val="TF">صح/خطأ</button>
+            </div>
+          </div>
+
+          <!-- إجابة TF -->
+          <div id="tfWrap" style="flex:1; display:none">
+            <label>الإجابة الصحيحة</label>
+            <input type="hidden" name="correct_bool" id="addCorrectBool" value="">
+            <div class="seg">
+              <button type="button" class="seg__btn ok" data-target="#addCorrectBool" data-val="2">✔ صح</button>
+              <button type="button" class="seg__btn" data-target="#addCorrectBool" data-val="3">✗ خطأ</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 خانات للمختار من متعدد -->
+        <div id="mcqWrap" style="display:block; margin-top:.6rem">
+          <div class="row" style="align-items:flex-end">
+            <div style="flex:1">
+              <label>الخيار 1</label>
+              <input class="inp" name="mcq_choice1" placeholder="نص الخيار 1">
+            </div>
+            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="1">1</button></div>
+          </div>
+          <div class="row" style="align-items:flex-end; margin-top:.35rem">
+            <div style="flex:1">
+              <label>الخيار 2</label>
+              <input class="inp" name="mcq_choice2" placeholder="نص الخيار 2">
+            </div>
+            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="2">2</button></div>
+          </div>
+          <div class="row" style="align-items:flex-end; margin-top:.35rem">
+            <div style="flex:1">
+              <label>الخيار 3 (اختياري)</label>
+              <input class="inp" name="mcq_choice3" placeholder="نص الخيار 3 (اختياري)">
+            </div>
+            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="3">3</button></div>
+          </div>
+          <input type="hidden" name="mcq_correct" id="mcqCorrect" value="">
+          <small class="muted" style="display:block; margin-top:.35rem">
+            تُنشأ الخيارات مباشرة بعد حفظ السؤال. الترتيب تلقائي حسب الإضافة.
+          </small>
+        </div>
+
+        <input type="hidden" name="order" value="0">
+
+        <div class="row" style="margin-top:.7rem">
+          <button class="btn" type="submit">➕ إضافة السؤال</button>
+        </div>
+      </form>
+    </aside>
+  </div>
+
+  <!-- ============ سكربت ============ -->
+  <script>
+    // فتح/إغلاق الكتل
+    document.querySelectorAll('[data-toggle]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const el = document.querySelector(btn.getAttribute('data-toggle'));
+        if(!el) return; el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+      });
+    });
+
+    // فلترة + بحث
+    const chips = document.querySelectorAll('#typeFilters .chip');
+    const list  = document.getElementById('qList');
+    const search= document.getElementById('qSearch');
+    let activeType = 'ALL';
+    function applyFilter(){
+      const q = (search?.value || '').toLowerCase().trim();
+      if(!list) return;
+      [...list.children].forEach(card=>{
+        const t = card.getAttribute('data-type');
+        const text = (card.getAttribute('data-text')||'');
+        const okType = (activeType==='ALL' || t===activeType);
+        const okText = (!q || text.includes(q));
+        card.style.display = (okType && okText) ? '' : 'none';
+      });
+    }
+    chips.forEach(c=>c.addEventListener('click', ()=>{ chips.forEach(x=>x.classList.remove('active')); c.classList.add('active'); activeType=c.dataset.type; applyFilter(); }));
+    search?.addEventListener('input', applyFilter);
+
+    // تنقّل الأسابيع
+    const wkPrev = document.getElementById('weekPrev'), wkNext = document.getElementById('weekNext'), wkNum = document.getElementById('weekNum');
+    const maxW   = parseInt(document.querySelector('.weekctrl')?.dataset.weeks || '16', 10);
+    function gotoWeek(n){ n=Math.max(1,Math.min(maxW,n)); const url=new URL(window.location.href); url.searchParams.set('week', String(n)); window.location.href=url.toString(); }
+    wkPrev?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)-1));
+    wkNext?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)+1));
+
+    // ربط أزرار ذات data-target (TF فقط)
+    function bindSegToHidden(root) {
+      root.querySelectorAll('.seg__btn[data-val][data-target]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const targetSel = btn.getAttribute('data-target');
+          const hidden = document.querySelector(targetSel);
+          if (!hidden) return;
+          btn.parentElement.querySelectorAll('.seg__btn[data-target]').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          hidden.value = btn.getAttribute('data-val'); // 2/3
+        });
+      });
+    }
+    document.querySelectorAll('form[data-tf]').forEach(f=>bindSegToHidden(f));
+    const tfWrap = document.getElementById('tfWrap'); if (tfWrap) bindSegToHidden(tfWrap);
+
+    // نوع السؤال + متطلبات MCQ
+    const addForm        = document.getElementById('addForm');
+    const qtypeSeg       = document.getElementById('qtypeSeg');
+    const qtypeHidden    = document.getElementById('qtypeHidden');
+    const mcqWrap        = document.getElementById('mcqWrap');
+    const addCorrectBool = document.getElementById('addCorrectBool');
+    const mcqInputs = ['mcq_choice1','mcq_choice2','mcq_choice3'].map(n => addForm?.querySelector(`[name="${n}"]`));
+
+    function setMCQRequirements(enable){
+      mcqInputs.forEach((inp, idx)=>{ if(!inp) return; if(enable){ inp.removeAttribute('disabled'); if(idx<2) inp.setAttribute('required','required'); else inp.removeAttribute('required'); } else { inp.setAttribute('disabled','disabled'); inp.removeAttribute('required'); } });
+    }
+    qtypeSeg?.querySelectorAll('.seg__btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        qtypeSeg.querySelectorAll('.seg__btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const v = btn.dataset.val;
+        qtypeHidden.value = v;
+        if (v === 'TF'){ tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false); }
+        else { tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true); if(addCorrectBool) addCorrectBool.value=''; }
+      });
+    });
+
+    // اختيار الصحيح للـ MCQ
+    const mcqCorrect = document.getElementById('mcqCorrect');
+    document.querySelectorAll('[data-mcq-radio]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('[data-mcq-radio]').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        mcqCorrect.value = btn.getAttribute('data-mcq-radio');
+      });
+    });
+
+    // حالة أولية
+    (function ini(){
+      if (qtypeHidden?.value === 'TF'){ tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false); }
+      else { tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true); }
+    })();
+
+    // تحقق قبل الإرسال + تخزين خيارات MCQ مؤقتًا
+    const weekNum = "{{ week.number }}";
+    function norm(s){ return (s||'').toString().trim(); }
+    function normKey(s){ return norm(s).toLowerCase().replace(/\s+/g,' '); }
+
+    // تحويل 2/3 → True/False في إضافة TF
+    addForm?.addEventListener('submit', (e)=>{
+      if (qtypeHidden.value === 'TF') {
+        setMCQRequirements(false);
+        const vRaw = addCorrectBool?.value;
+        if (vRaw !== '2' && vRaw !== '3') { e.preventDefault(); alert('رجاءً اختر «صح» أو «خطأ».'); return; }
+        addCorrectBool.value = (vRaw === '2') ? 'True' : 'False';
+        localStorage.removeItem('pending_mcq_options');
+      } else {
+        setMCQRequirements(true);
+        const t  = addForm.querySelector('[name="text"]');
+        const c1 = addForm.querySelector('[name="mcq_choice1"]')?.value || '';
+        const c2 = addForm.querySelector('[name="mcq_choice2"]')?.value || '';
+        const c3 = addForm.querySelector('[name="mcq_choice3"]')?.value || '';
+        const sel= mcqCorrect?.value || '';
+        const nonEmpty = [c1,c2,c3].map(norm).filter(Boolean);
+        if (!norm(t?.value) || nonEmpty.length < 2 || !['1','2','3'].includes(sel)) {
+          e.preventDefault(); alert('للاختيارات: أدخل خيارين على الأقل وحدّد الصحيح.'); return;
+        }
+        const payload = { t: normKey(t.value), week: weekNum, options: [
+          {t:norm(c1), ok:(sel==='1')},
+          {t:norm(c2), ok:(sel==='2')},
+          {t:norm(c3), ok:(sel==='3')}
+        ]};
+        localStorage.setItem('pending_mcq_options', JSON.stringify(payload));
+      }
+    }, true);
+
+    // تحويل 2/3 → True/False في تحرير TF
+    document.querySelectorAll('form[data-tf]').forEach(f=>{
+      f.addEventListener('submit', ()=>{
+        const hid = f.querySelector('input[name="correct_bool"]');
+        if (!hid) return;
+        const vRaw = hid.value;
+        if (vRaw === '2') hid.value = 'True';
+        else if (vRaw === '3') hid.value = 'False';
+      }, true);
+    });
+
+    // بعد الرجوع: أضف خيارات MCQ تلقائيًا (بدون نموذج "إضافة خيار")
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      const raw = localStorage.getItem('pending_mcq_options');
+      if (!raw) return;
+      let data; try { data = JSON.parse(raw); } catch { localStorage.removeItem('pending_mcq_options'); return; }
+      if (!data || data.week != weekNum) { localStorage.removeItem('pending_mcq_options'); return; }
+
+      const cards  = [...document.querySelectorAll('.qcard[data-type="MCQ"]')];
+      const target = cards.find(card => (card.getAttribute('data-text')||'') === data.t);
+      const qid    = target?.getAttribute('data-qid');
+      if (!qid) { localStorage.removeItem('pending_mcq_options'); return; }
+
+      function getCookie(name){ const m=document.cookie.match(new RegExp('(^|; )'+name+'=([^;]+)')); return m?decodeURIComponent(m[2]):null; }
+      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      const csrf = csrfInput?.value || getCookie('csrftoken');
+
+      const url = window.location.href;
+      const opts=(data.options||[]).map(o=>({text:o.t, ok:!!o.ok, order:9999})).filter(o=>o.text);
+      for (const o of opts) {
+        const p = new URLSearchParams();
+        p.append('form_name','add_option'); p.append('question_id', qid);
+        p.append('text', o.text); if (o.ok) p.append('is_correct','on');
+        p.append('order','9999'); if (csrf) p.append('csrfmiddlewaretoken', csrf);
+        await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:p.toString(), credentials:'same-origin' });
+      }
+      localStorage.removeItem('pending_mcq_options');
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

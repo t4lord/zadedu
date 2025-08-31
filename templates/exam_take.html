@@ -1,0 +1,185 @@
+{# templates/exam_take.html #}
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ scope_label }} — {{ subject.name }}</title>
+  <style>
+    :root{ --bd:#e7e7e7; --muted:#666; --ink:#111; --mcq:#7fb0ff; --tf:#2a7d46; --ok:#0a7; }
+    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink)}
+    .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
+    .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; background:#fff; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:.35rem}
+    .btn:hover{background:#f7f7f7}
+    .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff; margin-top:1rem}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+    .qwrap{display:flex; flex-direction:column; gap:1rem}
+    .q{border:1px solid var(--bd); border-radius:12px; padding:1rem; border-inline-start:8px solid transparent}
+    .q.mcq{border-inline-start-color:var(--mcq)}
+    .q.tf{border-inline-start-color:var(--tf)}
+    .q h3{margin:.1rem 0 .6rem 0; font-size:1.02rem}
+    .choices{list-style:none; padding:0; margin:.2rem 0}
+    .choices li{padding:.3rem .4rem; border-radius:8px; border:1px dashed transparent}
+    .score{font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <span class="badge">السنة: {{ term.year }}</span>
+      <span class="badge">الفصل: {{ term.get_number_display }}</span>
+      <span class="badge">المادة: {{ subject.name }}</span>
+    </div>
+    <div class="row">
+      <a class="btn" href="{% url 'subjects_grid' term.id %}">⬅ رجوع للمواد</a>
+    </div>
+  </div>
+
+  <h1 style="margin:.6rem 0 0">{{ scope_label }}</h1>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <span class="muted">الأسابيع:</span>
+        <strong>{{ week_numbers|join:", " }}</strong>
+      </div>
+      <div class="row">
+        {% if shuffle %}
+          <span class="badge">ترتيب عشوائي فعّال</span>
+          <a class="btn" href="?shuffle=0">إلغاء العشوائية</a>
+        {% else %}
+          <a class="btn" href="?shuffle=1">تفعيل العشوائية</a>
+        {% endif %}
+        <button class="btn" id="shuffleBtn" type="button">إعادة خلط داخل الصفحة</button>
+      </div>
+    </div>
+  </div>
+
+  {% if questions %}
+    <form class="card" id="examForm" onsubmit="return false">
+      <div class="row" style="justify-content:space-between">
+        <div class="muted">عدد الأسئلة: <strong id="qCount">{{ questions|length }}</strong></div>
+        <div class="row">
+          <button class="btn" type="button" id="btnGrade">تصحيح</button>
+          <button class="btn" type="button" id="btnReset">تفريغ الإجابات</button>
+        </div>
+      </div>
+
+      <div class="qwrap" id="qwrap" data-shuffle="{{ shuffle|yesno:'1,0' }}">
+        {% for q in questions %}
+          <article class="q {% if q.qtype == QuestionType.MCQ %}mcq{% else %}tf{% endif %}" data-qtype="{{ q.qtype }}" data-qid="{{ q.id }}">
+            <h3>س {{ forloop.counter }}) {{ q.text }}</h3>
+
+            {% if q.qtype == QuestionType.MCQ %}
+              <ul class="choices">
+                {% for opt in q.choices.all %}
+                  <li data-correct="{% if opt.is_correct %}1{% else %}0{% endif %}">
+                    <label style="display:flex; align-items:center; gap:.5rem; cursor:pointer">
+                      <input type="radio" name="q-{{ q.id }}" value="{{ forloop.counter }}">
+                      <span>{{ opt.text }}</span>
+                    </label>
+                  </li>
+                {% empty %}
+                  <li class="muted">لا توجد خيارات لهذا السؤال.</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="choices" data-correct="{{ q.correct_bool|yesno:'True,False' }}">
+                <label style="display:inline-flex; align-items:center; gap:.35rem; margin-inline-end:1rem; cursor:pointer">
+                  <input type="radio" name="q-{{ q.id }}" value="True"> ✔ صح
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:.35rem; cursor:pointer">
+                  <input type="radio" name="q-{{ q.id }}" value="False"> ✗ خطأ
+                </label>
+              </div>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+
+      <div class="row" id="resultRow" style="margin-top:.8rem; display:none">
+        <div>نتيجتك: <span class="score" id="scoreText">0/0</span></div>
+        <div class="muted" id="scoreDetails"></div>
+      </div>
+    </form>
+  {% else %}
+    <div class="card muted">لا توجد أسئلة ضمن هذا النطاق.</div>
+  {% endif %}
+
+  <script>
+    // شفل عناصر DOM
+    function shuffleChildren(parent){
+      const nodes = Array.from(parent.children);
+      for (let i = nodes.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        parent.insertBefore(nodes[j], nodes[i]);
+        [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+      }
+    }
+
+    // إعادة خلط الأسئلة والخيارات
+    function reshuffle(){
+      const wrap = document.getElementById('qwrap');
+      if (!wrap) return;
+      shuffleChildren(wrap);
+      // شفل خيارات كل MCQ
+      wrap.querySelectorAll('.q.mcq .choices').forEach(ul => shuffleChildren(ul));
+    }
+
+    // شغّل الشفل آليًا لو shuffle=1 من السيرفر
+    (function initShuffle(){
+      const wrap = document.getElementById('qwrap');
+      if (wrap?.dataset.shuffle === '1') reshuffle();
+    })();
+
+    document.getElementById('shuffleBtn')?.addEventListener('click', reshuffle);
+
+    // تصحيح بسيط على الواجهة
+    function grade(){
+      const wrap = document.getElementById('qwrap');
+      if (!wrap) return;
+
+      let total = 0, correct = 0, empty = 0;
+      const details = [];
+
+      wrap.querySelectorAll('.q').forEach((card, idx) => {
+        total++;
+        const qid = card.dataset.qid;
+        const type = card.dataset.qtype;
+
+        if (type === 'MCQ'){
+          const checked = card.querySelector('input[type="radio"][name="q-'+qid+'"]:checked');
+          if (!checked){ empty++; details.push(`س${idx+1}: بدون إجابة`); return; }
+          const li = checked.closest('li');
+          const isOk = li?.dataset.correct === '1';
+          if (isOk) correct++; else details.push(`س${idx+1}: خطأ`);
+        } else {
+          const checked = card.querySelector('input[type="radio"][name="q-'+qid+'"]:checked');
+          if (!checked){ empty++; details.push(`س${idx+1}: بدون إجابة`); return; }
+          const userVal = checked.value; // "True"/"False"
+          const correctVal = card.querySelector('.choices')?.dataset.correct; // "True"/"False"
+          if (userVal === correctVal) correct++; else details.push(`س${idx+1}: خطأ`);
+        }
+      });
+
+      const scoreText = document.getElementById('scoreText');
+      const resultRow = document.getElementById('resultRow');
+      const scoreDetails = document.getElementById('scoreDetails');
+
+      scoreText.textContent = `${correct}/${total}`;
+      scoreDetails.textContent = empty ? `أسئلة بلا إجابة: ${empty}` : (details.length ? details.join(' · ') : 'كل الإجابات صحيحة 👏');
+      resultRow.style.display = '';
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    document.getElementById('btnGrade')?.addEventListener('click', grade);
+
+    // تفريغ الإجابات
+    document.getElementById('btnReset')?.addEventListener('click', () => {
+      document.querySelectorAll('#qwrap input[type="radio"]:checked').forEach(el => el.checked = false);
+      document.getElementById('resultRow').style.display = 'none';
+    });
+  </script>
+</body>
+</html>

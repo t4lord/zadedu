@@ -5,13 +5,22 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# مفاتيح وتشغيل
+# =========[ 1) بيئة التشغيل ]=========
+DJANGO_ENV = os.getenv("DJANGO_ENV", "development").lower()  # 'development' | 'production' | 'test'
+DEBUG = os.getenv("DEBUG", "1" if DJANGO_ENV == "development" else "0") == "1"
+IS_PROD = (DJANGO_ENV == "production") and not DEBUG
+
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key")
-DEBUG = os.environ.get("DEBUG", "0") == "1"
 
-# هوستات مسموحة
-ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*").split(",") if h.strip()]
+# =========[ 2) Hosts & CSRF ]=========
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*" if not IS_PROD else "").split(",") if h.strip()]
+# في الإنتاج اضبط هذا المتغير مثل: ALLOWED_HOSTS=zadedu.onrender.com
+CSRF_TRUSTED_ORIGINS = [
+    # يجب أن يتضمن البروتوكول
+    os.environ.get("CSRF_ORIGIN", "http://127.0.0.1:8000" if not IS_PROD else "https://zadedu.onrender.com")
+]
 
+# =========[ 3) التطبيقات ]=========
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -22,8 +31,10 @@ INSTALLED_APPS = [
     "edu",
 ]
 
+# =========[ 4) Middleware ]=========
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise للإنتاج فقط عادة، لكن لا بأس بوجوده دائمًا
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -53,53 +64,43 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "study_site.wsgi.application"
 
-# قاعدة البيانات: Neon عبر DATABASE_URL وإلا SQLite محليًا
+# =========[ 5) قاعدة البيانات ]=========
 DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
-USE_POOLER = os.getenv("USE_POOLER", "0") == "1"   # لو استخدمت -pooler لاحقًا
-CONN_MAX_AGE = 0 if USE_POOLER else 300           # Neon ينام بعد ~5 دقائق
-
-# قاعدة البيانات: Postgres إذا وُجد DATABASE_URL، وإلا SQLite (بدون SSL)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
+USE_POOLER = os.getenv("USE_POOLER", "0") == "1"   # لـ Neon pooler لاحقًا
+CONN_MAX_AGE = 0 if USE_POOLER else (300 if IS_PROD else 0)
 
 if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.config(
-            default=DATABASE_URL,     # رابط Neon من البيئة
+            default=DATABASE_URL,
             conn_max_age=CONN_MAX_AGE,
-            ssl_require=True,         # نفعّله فقط مع Postgres
+            ssl_require=True,          # عند Postgres
         )
     }
-    if os.getenv("DEBUG", "0") != "1":
-        DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
+    # محليًا: SQLite
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-    
-DEFAULT_SUBJECTS = [
-    "التفسير", "الحديث", "الفقه", "العقيدة", "اللغة العربية", "التربية الإسلامية", "السيرة"
-]
 
-if not DEBUG:
+# صحّة الاتصال للإنتاج فقط
+if IS_PROD:
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
-AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
-]
-
+# =========[ 6) الضبط العام ]=========
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True
 USE_TZ = True
 
-# Static
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =========[ 7) Static & Media ]=========
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
@@ -107,24 +108,33 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}
 }
 
-# Media (محليًا فقط)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-# الجلسات
+# =========[ 8) الجلسات ]=========
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 365
 SESSION_SAVE_EVERY_REQUEST = False
 
-# أمان (الإنتاج)
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = (os.environ.get("SECURE_SSL_REDIRECT", "1") == "1") and not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
-SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG
+# =========[ 9) الأمان ]=========
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")  # للمنصات مثل Render
+SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "1" if IS_PROD else "0") == "1"
 
-# CSRF الموثوق
-CSRF_TRUSTED_ORIGINS = [os.environ.get("CSRF_ORIGIN", "https://example.com")]
+SESSION_COOKIE_SECURE = IS_PROD
+CSRF_COOKIE_SECURE = IS_PROD
+
+SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "2592000" if IS_PROD else "0"))  # 30 يومًا
+SECURE_HSTS_INCLUDE_SUBDOMAINS = IS_PROD
+SECURE_HSTS_PRELOAD = IS_PROD
+
+# =========[ 10) كلمات المرور ]=========
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# =========[ 11) بيانات أولية مخصصة ]=========
+DEFAULT_SUBJECTS = [
+    "التفسير", "الحديث", "الفقه", "العقيدة", "اللغة العربية", "التربية الإسلامية", "السيرة"
+]

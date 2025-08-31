@@ -9,13 +9,11 @@ from django.conf import settings
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
+from .models import Year, Term, SubjectOffering, Lesson, LessonContent, SubjectSchedule,Week, WeeklyQuiz, WeeklyQuestion,WeeklyChoice,QuestionType
+from django.db import transaction
 
-from .models import (
-    Year, Term, SubjectOffering, Lesson, LessonContent, Question, SECTION_CHOICES,
-    SubjectSchedule
-)
 
-def healthz(request): 
+def healthz(request):
     return HttpResponse("ok")
 
 # مفاتيح الجلسة/الكوكي
@@ -134,22 +132,33 @@ def change_term_view(request):
 
 # ===================== صفحة مناهج الفصل =====================
 
+from django.db.models import Min, Exists, OuterRef, Count
+from collections import defaultdict
 AR_DAYS = ['الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت','الأحد']
+
 
 def term_subjects_view(request, term_id: int):
     term = get_object_or_404(Term, id=term_id)
 
-    # اليوم الحالي مع معاينة يدوية عبر ?preview_day=0..6
-    weekday = timezone.localtime().weekday()
+    # اليوم الحالي + معاينة ?preview_day=0..6
+    weekday = timezone.localdate().weekday()
     pd = request.GET.get('preview_day')
     if pd is not None and pd.isdigit():
         w = int(pd)
         if 0 <= w <= 6:
             weekday = w
 
-    schedules_today = SubjectSchedule.objects.filter(offering=OuterRef('pk'), weekday=weekday)
+    # اكتشاف ما إذا كانت الأيام مخزنة 0..6 أو 1..7
+    base = SubjectSchedule.objects.filter(offering__term=term).aggregate(m=Min('weekday'))['m']
+    base_is_one = (base == 1)
+    weekday_db = weekday + 1 if base_is_one else weekday
 
-    offerings = (
+    schedules_today = SubjectSchedule.objects.filter(
+        offering=OuterRef('pk'),
+        weekday=weekday_db
+    )
+
+    offerings_qs = (
         SubjectOffering.objects
         .filter(term=term)
         .select_related('subject')
@@ -161,16 +170,26 @@ def term_subjects_view(request, term_id: int):
         .distinct()
     )
 
-    # نحفظ الترم المختار بالجلسة (للوضع القديم)
-    if request.session.get(SESSION_KEY) != term.id:
-        request.session[SESSION_KEY] = term.id
-        request.session.modified = True
+    # ❌ لا تستخدم prefetch_related('subjectschedule_set') لأنه غير معروف
+    # ✅ كوّن خريطة أيام الجدولة ثم علّقها على الكائنات
+    rows = SubjectSchedule.objects.filter(offering__term=term).values_list('offering_id', 'weekday')
+    sched_map = defaultdict(list)
+    for off_id, wd in rows:
+        sched_map[off_id].append(wd)
+
+    offerings = list(offerings_qs)
+    for o in offerings:
+        o.sched_days = sched_map.get(o.id, [])  # خاصية آمنة للاستخدام بالقالب
 
     return render(request, 'term_subjects.html', {
         'term': term,
         'offerings': offerings,
         'weekday_name': AR_DAYS[weekday],
         'weekday_index': weekday,
+        'weekday_db': weekday_db,
+        'base_is_one': base_is_one,
+        'has_any_schedule': bool(rows),
+        'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
 
 # alias بسيط لتجنّب كسر الروابط
@@ -196,27 +215,6 @@ class LessonContentForm(ModelForm):
         labels = {'body': 'المحتوى النصّي'}
         widgets = {'body': forms.Textarea(attrs={'class': 'inp', 'rows': 8})}
 
-class QuestionForm(ModelForm):
-    class Meta:
-        model = Question
-        fields = ['text', 'section', 'choice1', 'choice2', 'choice3', 'correct']
-        labels = {
-            'text': 'نص السؤال',
-            'section': 'القسم',
-            'choice1': 'الخيار 1',
-            'choice2': 'الخيار 2',
-            'choice3': 'الخيار 3',
-            'correct': 'الإجابة الصحيحة',
-        }
-        widgets = {
-            'text': forms.Textarea(attrs={'class': 'inp', 'rows': 3}),
-            'section': forms.Select(attrs={'class': 'inp'}),
-            'choice1': forms.TextInput(attrs={'class': 'inp'}),
-            'choice2': forms.TextInput(attrs={'class': 'inp'}),
-            'choice3': forms.TextInput(attrs={'class': 'inp'}),
-            'correct': forms.Select(attrs={'class': 'inp'}),
-        }
-
 # ===================== Helpers =====================
 
 def get_offering_or_404(term_id, subject_id):
@@ -228,7 +226,7 @@ def lessons_list_view(request, term_id, subject_id):
     offering = get_offering_or_404(term_id, subject_id)
     lessons = (
         offering.lessons
-        .annotate(question_count=Count('questions', distinct=True))
+        .select_related('content')  # لتحسين الاستعلام عند عرض توفر المحتوى
         .order_by('order', 'id')
     )
     return render(request, 'lessons_list.html', {
@@ -272,9 +270,12 @@ def lesson_delete_view(request, term_id, subject_id, lesson_id):
         return redirect('lessons_list', term_id=term_id, subject_id=subject_id)
     return render(request, 'lesson_confirm_delete.html', {'offering': offering, 'lesson': lesson})
 
-# ===================== إدارة الدرس (تحرير محتوى + أسئلة) =====================
+# ===================== إدارة الدرس (تحرير محتوى فقط) =====================
 
 def lesson_manage_view(request, term_id, subject_id, lesson_id):
+    """
+    إدارة محتوى الدرس فقط (تمت إزالة إدارة أسئلة الدرس ضمن التنظيف تمهيدًا للنظام الأسبوعي).
+    """
     offering = get_offering_or_404(term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
     content, _ = LessonContent.objects.get_or_create(lesson=lesson)
@@ -288,44 +289,12 @@ def lesson_manage_view(request, term_id, subject_id, lesson_id):
     else:
         cform = LessonContentForm(instance=content)
 
-    # إضافة سؤال
-    if request.method == 'POST' and request.POST.get('form_name') == 'add_question':
-        qform = QuestionForm(request.POST)
-        if qform.is_valid():
-            q = qform.save(commit=False)
-            q.lesson = lesson
-            q.save()
-            return redirect('lesson_manage', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
-    else:
-        qform = QuestionForm()
-
-    # تعديل سؤال
-    if request.method == 'POST' and request.POST.get('form_name', '').startswith('edit_question_'):
-        qid = request.POST.get('question_id')
-        qobj = get_object_or_404(Question, id=qid, lesson=lesson)
-        qedit = QuestionForm(request.POST, instance=qobj)
-        if qedit.is_valid():
-            qedit.save()
-            return redirect('lesson_manage', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
-
-    # حذف سؤال
-    if request.method == 'POST' and request.POST.get('form_name') == 'delete_question':
-        qid = request.POST.get('question_id')
-        qobj = get_object_or_404(Question, id=qid, lesson=lesson)
-        qobj.delete()
-        return redirect('lesson_manage', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
-
-    questions = lesson.questions.order_by('section', 'id')
-
     return render(request, 'lesson_manage.html', {
         'offering': offering,
         'term': offering.term,
         'subject': offering.subject,
         'lesson': lesson,
         'cform': cform,
-        'qform': qform,
-        'questions': questions,
-        'SECTION_CHOICES': SECTION_CHOICES,
     })
 
 # ===================== العرض الحقيقي (قراءة فقط) =====================
@@ -350,55 +319,193 @@ def lesson_detail_view(request, term_id, subject_id, lesson_id):
         'content': content,
     })
 
-def lesson_questions_view(request, term_id, subject_id, lesson_id):
-    """
-    عرض أسئلة الدرس مع دعم نطاق القسم:
-    - FULL  => FIRST + SECOND + FULL
-    - FIRST => FIRST + FULL
-    - SECOND=> SECOND + FULL
-    """
+
+WEEKS_PER_TERM = 12  # عدّلها لو تبغى عددًا آخر
+
+def ensure_weeks_for_term(term):
+    existing = set(term.weeks.values_list('number', flat=True))
+    to_create = [Week(term=term, number=n) for n in range(1, WEEKS_PER_TERM + 1) if n not in existing]
+    if to_create:
+        Week.objects.bulk_create(to_create)
+
+class WeeklyQuestionForm(forms.ModelForm):
+    class Meta:
+        model = WeeklyQuestion
+        fields = ['text', 'qtype', 'correct_bool', 'order']
+        labels = {'text':'نص السؤال','qtype':'النوع','correct_bool':'الإجابة الصحيحة (لصح/خطأ)','order':'الترتيب'}
+        widgets = {
+            'text': forms.Textarea(attrs={'class':'inp','rows':3}),
+            'qtype': forms.Select(attrs={'class':'inp'}),
+            'correct_bool': forms.Select(choices=[('', '— اختر —'), (True, 'صح'), (False, 'خطأ')], attrs={'class':'inp'}),
+            'order': forms.NumberInput(attrs={'class':'inp','min':0}),
+        }
+
+class WeeklyChoiceForm(forms.ModelForm):
+    class Meta:
+        model = WeeklyChoice
+        fields = ['text', 'is_correct', 'order']
+        labels = {'text':'نص الخيار','is_correct':'صحيح؟','order':'ترتيب'}
+        widgets = {
+            'text': forms.TextInput(attrs={'class':'inp'}),
+            'is_correct': forms.CheckboxInput(attrs={}),
+            'order': forms.NumberInput(attrs={'class':'inp','min':0}),
+        }
+
+@transaction.atomic
+def weekly_quiz_manage_view(request, term_id, subject_id):
     offering = get_offering_or_404(term_id, subject_id)
-    lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
+    term = offering.term
 
-    section = request.GET.get('section') or request.POST.get('section') or 'FULL'
+    ensure_weeks_for_term(term)
 
-    base_qs = lesson.questions.all()
-    if section == 'FIRST':
-        qs = base_qs.filter(section__in=['FIRST', 'FULL'])
-    elif section == 'SECOND':
-        qs = base_qs.filter(section__in=['SECOND', 'FULL'])
+    try:
+        week_number = int(request.GET.get('week', '1'))
+    except ValueError:
+        week_number = 1
+    week_number = max(1, min(WEEKS_PER_TERM, week_number))
+
+    week = Week.objects.filter(term=term, number=week_number).first() or Week.objects.create(term=term, number=week_number)
+
+    quiz, _ = WeeklyQuiz.objects.get_or_create(
+        offering=offering, week=week, defaults={'title': f"أسئلة أسبوع {week_number}"}
+    )
+
+    # ============ إضافة سؤال ============
+    if request.method == 'POST' and request.POST.get('form_name') == 'add_question':
+        qform = WeeklyQuestionForm(request.POST)
+        if qform.is_valid():
+            q = qform.save(commit=False)
+            q.quiz = quiz
+            # ضمان صحة correct_bool: لا يُستخدم إلا مع TF
+            if q.qtype == QuestionType.TF and q.correct_bool is None:
+                qform.add_error('correct_bool', 'اختر صح أو خطأ.')
+            elif q.qtype == QuestionType.MCQ:
+                q.correct_bool = None
+            if not qform.errors:
+                q.save()
+                return redirect(f"{request.path}?week={week_number}")
     else:
-        section = 'FULL'
-        qs = base_qs.filter(section__in=['FIRST', 'SECOND', 'FULL'])
+        qform = WeeklyQuestionForm()
 
-    questions = list(qs.order_by('section', 'id'))
+    # ============ تعديل سؤال ============
+    if request.method == 'POST' and request.POST.get('form_name', '').startswith('edit_question_'):
+        qid = request.POST.get('question_id')
+        qobj = get_object_or_404(WeeklyQuestion, id=qid, quiz=quiz)
+        qedit = WeeklyQuestionForm(request.POST, instance=qobj)
+        if qedit.is_valid():
+            q = qedit.save(commit=False)
+            if q.qtype == QuestionType.TF and q.correct_bool is None:
+                qedit.add_error('correct_bool', 'اختر صح أو خطأ.')
+            elif q.qtype == QuestionType.MCQ:
+                q.correct_bool = None
+            if not qedit.errors:
+                q.save()
+                return redirect(f"{request.path}?week={week_number}")
 
-    graded = False
-    score = 0
-    total = len(questions)
+    # ============ حذف سؤال ============
+    if request.method == 'POST' and request.POST.get('form_name') == 'delete_question':
+        qid = request.POST.get('question_id')
+        qobj = get_object_or_404(WeeklyQuestion, id=qid, quiz=quiz)
+        qobj.delete()
+        return redirect(f"{request.path}?week={week_number}")
 
-    if request.method == 'POST' and request.POST.get('form_name') == 'grade':
-        graded = True
-        for q in questions:
-            sel_raw = request.POST.get(f"q_{q.id}", "")
-            try:
-                sel = int(sel_raw)
-            except ValueError:
-                sel = 0
-            q.selected = sel
-            q.is_correct_flag = (sel == q.correct)
-            if q.is_correct_flag:
-                score += 1
+    # ============ خيارات MCQ: إضافة/تعديل/حذف/تعيين صحيح ============
+    if request.method == 'POST' and request.POST.get('form_name') == 'add_option':
+        qid = request.POST.get('question_id')
+        qobj = get_object_or_404(WeeklyQuestion, id=qid, quiz=quiz, qtype=QuestionType.MCQ)
+        oform = WeeklyChoiceForm(request.POST)
+        if oform.is_valid():
+            opt = oform.save(commit=False)
+            opt.question = qobj
+            opt.save()
+            # لو تم وضع is_correct=True لهذا الخيار، ألغِ الصح عن بقية الخيارات
+            if opt.is_correct:
+                WeeklyChoice.objects.filter(question=qobj).exclude(id=opt.id).update(is_correct=False)
+            return redirect(f"{request.path}?week={week_number}")
 
-    return render(request, 'lesson_questions.html', {
-        'offering': offering,
-        'term': offering.term,
+    if request.method == 'POST' and request.POST.get('form_name') == 'edit_option':
+        oid = request.POST.get('option_id')
+        opt = get_object_or_404(WeeklyChoice, id=oid, question__quiz=quiz, question__qtype=QuestionType.MCQ)
+        oform = WeeklyChoiceForm(request.POST, instance=opt)
+        if oform.is_valid():
+            opt = oform.save()
+            if opt.is_correct:
+                WeeklyChoice.objects.filter(question=opt.question).exclude(id=opt.id).update(is_correct=False)
+            return redirect(f"{request.path}?week={week_number}")
+
+    if request.method == 'POST' and request.POST.get('form_name') == 'delete_option':
+        oid = request.POST.get('option_id')
+        opt = get_object_or_404(WeeklyChoice, id=oid, question__quiz=quiz, question__qtype=QuestionType.MCQ)
+        opt.delete()
+        return redirect(f"{request.path}?week={week_number}")
+
+    # ============ بيانات العرض ============
+    questions = (
+        quiz.questions
+        .prefetch_related('choices')
+        .order_by('order', 'id')
+    )
+    weeks = list(term.weeks.order_by('number'))
+
+    return render(request, 'weekly_quiz_manage.html', {
+        'term': term,
         'subject': offering.subject,
-        'lesson': lesson,
+        'offering': offering,
+        'quiz': quiz,
+        'week': week,
+        'weeks': weeks,
+        'qform': qform,
         'questions': questions,
-        'graded': graded,
-        'score': score,
-        'total': total,
-        'section': section,
-        'SECTION_CHOICES': SECTION_CHOICES,
+        'QuestionType': QuestionType,
+        'WEEKS_PER_TERM': WEEKS_PER_TERM,
+    })
+
+from django.db.models import Prefetch
+
+def exam_take_view(request, term_id: int, subject_id: int, scope: str):
+    offering = get_offering_or_404(term_id, subject_id)
+    term = offering.term
+    subject = offering.subject  # اختياري لو تحتاجه للعرض فقط
+
+    scope = (scope or '').lower()
+    if scope == 'm1':
+        start_w, end_w = 1, 4
+        scope_label = "اختبار الشهر الأول (1–4)"
+    elif scope == 'm2':
+        start_w, end_w = 5, 8
+        scope_label = "اختبار الشهر الثاني (5–8)"
+    elif scope == 'final':
+        start_w, end_w = 1, 12
+        scope_label = "الاختبار النهائي (1–12)"
+    else:
+        raise Http404("نطاق الاختبار غير معروف")
+
+    # الأسابيع المطلوبة
+    weeks = Week.objects.filter(term=term, number__gte=start_w, number__lte=end_w).order_by('number')
+    week_numbers = list(weeks.values_list('number', flat=True))
+
+    # ✅ التصحيح هنا: التصفية عبر quiz__offering و quiz__week__
+    questions = (
+        WeeklyQuestion.objects
+        .filter(
+            quiz__offering=offering,
+            quiz__week__number__in=week_numbers,
+        )
+        .select_related('quiz', 'quiz__week')
+        .prefetch_related(Prefetch('choices', queryset=WeeklyChoice.objects.order_by('order', 'id')))
+        .order_by('quiz__week__number', 'id')
+    )
+
+    shuffle = request.GET.get('shuffle') in {'1', 'true', 'yes', 'on'}
+
+    return render(request, 'exam_take.html', {
+        'term': term,
+        'subject': subject,
+        'offering': offering,
+        'scope': scope,
+        'scope_label': scope_label,
+        'week_numbers': week_numbers,
+        'questions': questions,
+        'shuffle': shuffle,
+        'QuestionType': QuestionType,  # ✅ لو القالب يقارن بـ QuestionType.MCQ/TF
     })

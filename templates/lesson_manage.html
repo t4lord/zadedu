@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -6,53 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>إدارة الدرس — {{ lesson.title }}</title>
   <style>
-    :root { --bg:#fff; --bd:#e7e7e7; --muted:#666; --ink:#111; --pill:#eef; --pillbd:#dde; --ok:#0a7; --warn:#c00; }
-    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink);}
+    :root { --bg:#fff; --bd:#e7e7e7; --muted:#666; --ink:#111; --pill:#eef; --pillbd:#dde; }
+    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg)}
     .mngr__head{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
     .badge{display:inline-block; background:var(--pill); border:1px solid var(--pillbd); padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
     .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer; background:#fff}
     .btn:hover{background:#f7f7f7}
-    .btn--danger{border-color:#f3d0d0}
-    .btn--danger:hover{background:#fff6f6}
     .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:var(--bg)}
     .mngr__grid{display:grid; gap:1rem; grid-template-columns: 1fr; margin-top:1rem}
-    @media (min-width: 980px){ .mngr__grid{grid-template-columns: 1.2fr .8fr} }
     .inp{width:100%; padding:.6rem .7rem; border:1px solid #ccc; border-radius:10px}
     .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
     .muted{color:var(--muted)}
     h1{margin:.6rem 0 0 0}
     h2{margin:0 0 .6rem 0; font-size:1.1rem}
 
-    /* أسئلة */
-    .filters{display:flex; gap:.4rem; flex-wrap:wrap; margin:.3rem 0 1rem}
-    .chip{border:1px solid var(--bd); background:#fafafa; border-radius:999px; padding:.25rem .65rem; cursor:pointer; font-size:.92rem}
-    .chip--active{border-color:#bcd; background:#f4f8ff}
-    .qwrap{display:grid; gap:.8rem}
-    .qcard{border:1px solid var(--bd); border-radius:12px; padding:.8rem}
-    .qcard__meta{display:flex; gap:.4rem; align-items:center; font-size:.85rem; color:var(--muted)}
-    .pill{background:var(--pill); border:1px solid var(--pillbd); border-radius:999px; padding:.1rem .5rem}
-    .qcard__title{margin:.35rem 0 .2rem 0; font-weight:600}
-    .choices{list-style:none; padding:0; margin:.2rem 0 .4rem 0}
-    .choices li{padding:.25rem .5rem; border-radius:8px; border:1px dashed transparent; display:flex; align-items:center; gap:.4rem}
-    .choices li.ok{border-color:#d6f0e3; background:#f6fff9}
-    .editblk{display:none; margin-top:.6rem; border-top:1px dashed var(--bd); padding-top:.6rem}
-    .editblk .inp{margin:.2rem 0}
-    .qcard__actions .btn{font-size:.92rem}
-    .qcard__actions{display:flex; gap:.5rem; flex-wrap:wrap}
-
     /* محرر المحتوى */
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
     .toolbar .btn{cursor:pointer}
+    #m_editor{line-height:1.9; min-height:220px; border:1px dashed #bbb; padding:1rem; border-radius:10px; background:#fff;}
     #m_editor ul, #m_editor ol { padding-inline-start: 1.25rem; }
     #m_editor p { margin: .2rem 0; }
-
-    /* أزرار الأيقونات (القسم/الإجابة الصحيحة) */
-    .seg{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
-    .seg__btn{
-      width:36px; height:36px; border-radius:50%;
-      border:1px solid #ccc; background:#fff; cursor:pointer;
-      font-weight:700; line-height:36px; text-align:center
-    }
-    .seg__btn.active{background:#e9f9ee; border-color:#2a7d46; color:#2a7d46}
 
     /* لوحة ألوان ثابتة */
     .palette{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
@@ -79,12 +51,12 @@
   <h1>{{ lesson.title }}</h1>
 
   <div class="mngr__grid">
-    <!-- محتوى الدرس -->
+    <!-- محتوى الدرس فقط -->
     <section class="card">
       <h2>محتوى الدرس: {{ lesson.title }}</h2>
 
       <!-- شريط الأدوات -->
-      <div class="toolbar" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+      <div class="toolbar">
         <button class="btn" type="button" id="m_bold"><strong>B</strong></button>
         <button class="btn" type="button" id="m_ul">• قائمة</button>
         <button class="btn" type="button" id="m_ol">1. تعداد</button>
@@ -99,21 +71,17 @@
         </div>
 
         <button class="btn" type="button" id="m_clean">🧹 تنظيف</button>
-        <!-- حفظ يرسل نفس نموذج المحتوى -->
         <button class="btn" type="submit" form="contentForm">💾 حفظ</button>
       </div>
 
-      <form method="post" id="contentForm" class="stack">
+      <form method="post" id="contentForm" class="stack" action="">
         {% csrf_token %}
         <input type="hidden" name="form_name" value="content" />
-        <!-- حقل النموذج الأصلي مخفي: سننسخ له HTML المحرّر قبل الإرسال -->
+        <!-- حقل النموذج الأصلي مخفي: سيتم نسخ HTML المحرّر له قبل الإرسال -->
         <div style="display:none">{{ cform.body }}</div>
 
         <!-- المحرّر -->
-        <div id="m_editor"
-            contenteditable="true"
-            style="line-height:1.9; min-height:220px; border:1px dashed #bbb; padding:1rem; border-radius:10px; background:#fff;">
-        </div>
+        <div id="m_editor" contenteditable="true"></div>
 
         <small class="muted" style="display:block;margin-top:.4rem">
           تلميح: حدّد نصًا ثم اضغط <strong>B</strong> لعمله عريضًا.  
@@ -122,167 +90,9 @@
         </small>
       </form>
     </section>
-
-    <!-- إضافة سؤال جديد -->
-    <section class="card">
-      <h2>إضافة سؤال (اختيار من 3)</h2>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="form_name" value="add_question" />
-
-        <!-- نرسل القسم هنا (افتراضيًا FULL) -->
-        <input type="hidden" name="section" id="add_section" value="FULL" />
-
-        <label>نص السؤال</label>
-        {{ qform.text }}
-
-        <!-- اختيار القسم كأيقونات -->
-        <div class="row" style="margin-top:.4rem">
-          <div style="font-weight:600">القسم:</div>
-          <div class="seg" id="seg_section">
-            <button type="button" class="seg__btn" data-val="FIRST"  title="القسم الأول">①</button>
-            <button type="button" class="seg__btn" data-val="SECOND" title="القسم الثاني">②</button>
-            <span class="muted" id="seg_hint">لم تختر قسمًا → سيُحفظ ضمن <strong>كامل القسم</strong>.</span>
-          </div>
-        </div>
-
-        <!-- اختيار الإجابة الصحيحة كأيقونات -->
-        <div class="row" style="margin-top:.4rem">
-          <div style="font-weight:600">الإجابة الصحيحة:</div>
-          <input type="hidden" name="correct" id="add_correct" value="1" />
-          <div class="seg" id="seg_correct_add">
-            <button type="button" class="seg__btn active" data-val="1">1</button>
-            <button type="button" class="seg__btn" data-val="2">2</button>
-            <button type="button" class="seg__btn" data-val="3">3</button>
-          </div>
-        </div>
-
-        <label>الخيار 1</label>
-        {{ qform.choice1 }}
-        <label>الخيار 2</label>
-        {{ qform.choice2 }}
-        <label>الخيار 3</label>
-        {{ qform.choice3 }}
-
-        <div class="row" style="margin-top:.6rem">
-          <button class="btn" type="submit">➕ إضافة السؤال</button>
-        </div>
-      </form>
-    </section>
   </div>
 
-  <!-- قائمة الأسئلة -->
-  <section class="card" style="margin-top:1rem">
-    <div class="row" style="justify-content:space-between; align-items:center">
-      <h2 style="margin:0">الأسئلة</h2>
-      <div class="filters" id="filters">
-        <button class="chip chip--active" data-filter="ALL">الكل</button>
-        <button class="chip" data-filter="FIRST">القسم الأول</button>
-        <button class="chip" data-filter="SECOND">القسم الثاني</button>
-        <button class="chip" data-filter="FULL">كامل القسم</button>
-      </div>
-    </div>
-
-    <div class="qwrap" id="qwrap">
-      {% for q in questions %}
-        <div class="qcard" data-section="{{ q.section }}" id="q-{{ q.id }}">
-          <div class="qcard__meta">
-            <span class="pill">{{ q.get_section_display }}</span>
-            <span class="muted">#{{ forloop.counter }}</span>
-          </div>
-
-          <div class="qcard__title">س: {{ q.text }}</div>
-
-          <ul class="choices">
-            <li class="{% if q.correct == 1 %}ok{% endif %}">1) {{ q.choice1 }} {% if q.correct == 1 %}✔{% endif %}</li>
-            <li class="{% if q.correct == 2 %}ok{% endif %}">2) {{ q.choice2 }} {% if q.correct == 2 %}✔{% endif %}</li>
-            <li class="{% if q.correct == 3 %}ok{% endif %}">3) {{ q.choice3 }} {% if q.correct == 3 %}✔{% endif %}</li>
-          </ul>
-
-          <div class="qcard__actions">
-            <button class="btn" type="button" onclick="toggleEdit({{ q.id }})">✏️ تعديل</button>
-
-            <form method="post" class="inline" onsubmit="return confirm('حذف هذا السؤال؟');">
-              {% csrf_token %}
-              <input type="hidden" name="form_name" value="delete_question" />
-              <input type="hidden" name="question_id" value="{{ q.id }}" />
-              <button class="btn btn--danger" type="submit">🗑️ حذف</button>
-            </form>
-          </div>
-
-          <!-- بلوك التعديل (مخفي افتراضياً) -->
-          <div class="editblk" id="edit-{{ q.id }}">
-            <form method="post">
-              {% csrf_token %}
-              <input type="hidden" name="form_name" value="edit_question_{{ q.id }}" />
-              <input type="hidden" name="question_id" value="{{ q.id }}" />
-
-              <label>نص السؤال</label>
-              <textarea name="text" class="inp" rows="2">{{ q.text }}</textarea>
-
-              <div class="row">
-                <div style="flex:1">
-                  <label>القسم</label>
-                  <select name="section" class="inp">
-                    {% for val,label in SECTION_CHOICES %}
-                      <option value="{{ val }}" {% if q.section == val %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div style="flex:1">
-                  <label>الإجابة الصحيحة</label>
-                  <div class="seg" data-input="correct-{{ q.id }}">
-                    <button type="button" class="seg__btn {% if q.correct == 1 %}active{% endif %}" data-val="1">1</button>
-                    <button type="button" class="seg__btn {% if q.correct == 2 %}active{% endif %}" data-val="2">2</button>
-                    <button type="button" class="seg__btn {% if q.correct == 3 %}active{% endif %}" data-val="3">3</button>
-                  </div>
-                  <input type="hidden" name="correct" id="correct-{{ q.id }}" value="{{ q.correct }}" />
-                </div>
-              </div>
-
-              <label>الخيار 1</label>
-              <input name="choice1" class="inp" value="{{ q.choice1 }}" />
-              <label>الخيار 2</label>
-              <input name="choice2" class="inp" value="{{ q.choice2 }}" />
-              <label>الخيار 3</label>
-              <input name="choice3" class="inp" value="{{ q.choice3 }}" />
-
-              <div class="row" style="margin-top:.6rem">
-                <button class="btn" type="submit">💾 حفظ التعديل</button>
-                <button class="btn" type="button" onclick="toggleEdit({{ q.id }})">إغلاق</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      {% empty %}
-        <div class="muted">لا توجد أسئلة بعد.</div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <script>
-    // فلترة الأسئلة حسب القسم (عرض فقط)
-    const filters = document.getElementById('filters');
-    const qwrap   = document.getElementById('qwrap');
-    filters?.addEventListener('click', (e) => {
-      if(e.target.matches('.chip')){
-        [...filters.children].forEach(c => c.classList.remove('chip--active'));
-        e.target.classList.add('chip--active');
-        const v = e.target.dataset.filter;
-        [...qwrap.children].forEach(card => {
-          if(v === 'ALL' || card.dataset.section === v) card.style.display = '';
-          else card.style.display = 'none';
-        });
-      }
-    });
-
-    // إظهار/إخفاء محرر سؤال
-    function toggleEdit(id){
-      const el = document.getElementById('edit-'+id);
-      if(!el) return;
-      el.style.display = (el.style.display === 'block') ? 'none' : 'block';
-    }
-  </script>
+  <!-- تمت إزالة: إضافة سؤال جديد + قائمة الأسئلة + كل سكربتات الأسئلة -->
 
   <!-- سكربت محرّر المحتوى (مع ألوان ثابتة) -->
   <script>
@@ -293,7 +103,7 @@
     const btnOL   = document.getElementById('m_ol');
     const clean   = document.getElementById('m_clean');
 
-    // حمّل المحتوى الحالي في المحرّر
+    // حمّل المحتوى الحالي في المحرّر (بدون رسائل <em>)
     editor.innerHTML = bodyFld ? bodyFld.value : '';
 
     function focusEditor(){ editor.focus(); }
@@ -327,65 +137,6 @@
     document.getElementById('contentForm')?.addEventListener('submit', () => {
       if (bodyFld) bodyFld.value = editor.innerHTML.trim();
     });
-  </script>
-
-  <!-- سكربت تحديد القسم والإجابة الصحيحة (أيقونات) -->
-  <script>
-    // =========== تحديد "القسم" في إضافة سؤال ===========
-    (function(){
-      const hidden = document.getElementById('add_section');   // FULL افتراضيًا
-      const wrap   = document.getElementById('seg_section');
-      const hint   = document.getElementById('seg_hint');
-      if (!hidden || !wrap) return;
-      const btns = wrap.querySelectorAll('.seg__btn');
-
-      function setVal(v){
-        hidden.value = v || 'FULL';
-        btns.forEach(b => b.classList.toggle('active', b.dataset.val === v));
-        if (hint){
-          if (v === 'FIRST')  hint.innerHTML = 'سيُحفظ ضمن <strong>القسم الأول</strong>.';
-          else if (v === 'SECOND') hint.innerHTML = 'سيُحفظ ضمن <strong>القسم الثاني</strong>.';
-          else hint.innerHTML = 'لم تختر قسمًا → سيُحفظ ضمن <strong>كامل القسم</strong>.';
-        }
-      }
-      btns.forEach(b => b.addEventListener('click', () => {
-        // اضغط على نفس الزر مرة أخرى لإلغاء الاختيار (يرجع FULL)
-        setVal(b.classList.contains('active') ? null : b.dataset.val);
-      }));
-      setVal(hidden.value); // يبدأ بلا اختيار مرئي = FULL
-    })();
-
-    // =========== تحديد "الإجابة الصحيحة" في إضافة سؤال ===========
-    (function(){
-      const hidden = document.getElementById('add_correct');  // 1 افتراضيًا
-      const wrap   = document.getElementById('seg_correct_add');
-      if (!hidden || !wrap) return;
-      const btns = wrap.querySelectorAll('.seg__btn');
-
-      function setVal(v){
-        hidden.value = v;
-        btns.forEach(b => b.classList.toggle('active', b.dataset.val === v));
-      }
-      btns.forEach(b => b.addEventListener('click', () => setVal(b.dataset.val)));
-      setVal(hidden.value);
-    })();
-
-    // =========== تحديد "الإجابة الصحيحة" داخل محرر كل سؤال ===========
-    (function(){
-      document.querySelectorAll('.seg[data-input^="correct-"]').forEach(group => {
-        const inputId = group.dataset.input;
-        const hidden  = document.getElementById(inputId);
-        if (!hidden) return;
-        const btns = group.querySelectorAll('.seg__btn');
-
-        function setVal(v){
-          hidden.value = v;
-          btns.forEach(b => b.classList.toggle('active', b.dataset.val === v));
-        }
-        btns.forEach(b => b.addEventListener('click', () => setVal(b.dataset.val)));
-        setVal(hidden.value); // تفعيل الحالة الحالية عند الفتح
-      });
-    })();
   </script>
 </body>
 </html>
