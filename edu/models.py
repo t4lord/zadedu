@@ -51,6 +51,22 @@ class SubjectOffering(models.Model):
 
     def __str__(self):
         return f"{self.subject} ({self.term})"
+    @property  # CHANGED: خاصية جاهزة للقالب تُرجع قائمة أيام 0..6
+    def sched_days(self):
+        """
+        يُرجِع قائمة بالأيام (0..6) حسب جداول SubjectSchedule المرتبطة.
+        تمثيلنا في SubjectSchedule.weekday هو 0..6 بالفعل (الإثنين=0..الأحد=6)
+        """
+        # NOTE: استخدام values_list مباشر لتجنب تحميل كائنات كاملة
+        days = list(self.schedules.values_list('weekday', flat=True))
+        # إزالة التكرارات مع الحفاظ على الترتيب
+        return list(dict.fromkeys(days))
+
+    def is_today_for(self, weekday_idx_0_6: int) -> bool:  # CHANGED: دالة مساعدة للحساب
+        """هل هذه المادة مقررة لليوم المعطى؟"""
+        return weekday_idx_0_6 in self.sched_days
+    
+
 SECTION_CHOICES = [
     ('FIRST',  'القسم الأول'),
     ('SECOND', 'القسم الثاني'),

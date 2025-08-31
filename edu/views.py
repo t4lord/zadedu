@@ -7,10 +7,11 @@ from django.db.models import Prefetch, Count, Exists, OuterRef
 from django.forms import ModelForm
 from django.conf import settings
 from django.views.decorators.http import require_POST
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from .models import Year, Term, SubjectOffering, Lesson, LessonContent, SubjectSchedule,Week, WeeklyQuiz, WeeklyQuestion,WeeklyChoice,QuestionType
 from django.db import transaction
+from datetime import date
 
 
 def healthz(request):
@@ -192,9 +193,56 @@ def term_subjects_view(request, term_id: int):
         'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
 
+from collections import defaultdict
+from django.db.models import Min, Exists, OuterRef, Count
 # alias بسيط لتجنّب كسر الروابط
-def subjects_grid_view(request, term_id: int):
-    return term_subjects_view(request, term_id)
+# alias بسيط لتجنّب كسر الروابط
+def subjects_grid_view(request, term_id):
+    from django.db.models import Min, Exists, OuterRef, Count
+
+    term = get_object_or_404(Term, id=term_id)
+
+    # اليوم الحالي بالتوقيت المحلي
+    weekday = timezone.localdate().weekday()  # Mon=0 .. Sun=6
+
+    # اكتشاف 0..6 أو 1..7 (سلامة فقط)
+    base = SubjectSchedule.objects.filter(offering__term=term).aggregate(m=Min('weekday'))['m']
+    base_is_one = (base == 1)
+    weekday_db = weekday + 1 if base_is_one else weekday
+
+    # هل اليوم مجدول لهذه المادة؟
+    schedules_today = SubjectSchedule.objects.filter(
+        offering=OuterRef('pk'),
+        weekday=weekday_db
+    )
+
+    # اجلب العروض مع subject وعدد الدروس و is_today + **prefetch schedules**
+    offerings = list(
+        SubjectOffering.objects
+        .filter(term=term)
+        .select_related('subject')
+        .prefetch_related('schedules')  # ✅ حتى خاصية sched_days تستخدم الكاش بدون N+1
+        .annotate(
+            lesson_count=Count('lessons', distinct=True),
+            is_today=Exists(schedules_today),
+        )
+        .order_by('subject__name')
+        .distinct()
+    )
+
+    has_any_schedule = SubjectSchedule.objects.filter(offering__term=term).exists()
+
+    return render(request, 'term_subjects.html', {
+        'term': term,
+        'offerings': offerings,
+        'weekday_name': AR_DAYS[weekday],
+        'weekday_index': weekday,
+        'weekday_db': weekday_db,
+        'base_is_one': base_is_one,
+        'has_any_schedule': has_any_schedule,
+        'debug': request.GET.get('debug') in {'1','true','yes','on'},
+    })
+
 
 # ===================== Forms =====================
 
