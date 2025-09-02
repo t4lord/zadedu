@@ -40,6 +40,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # فرض تسجيل الدخول على جميع الصفحات (عدا المعفاة)
+    "study_site.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -138,3 +140,9 @@ AUTH_PASSWORD_VALIDATORS = [
 DEFAULT_SUBJECTS = [
     "التفسير", "الحديث", "الفقه", "العقيدة", "اللغة العربية", "التربية الإسلامية", "السيرة"
 ]
+
+# =========[ 12) الدخول ]=========
+# صفحة تسجيل الدخول الافتراضية ووجهات إعادة التوجيه
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"          # بعد تسجيل الدخول
+LOGOUT_REDIRECT_URL = "/accounts/login/"  # بعد تسجيل الخروج

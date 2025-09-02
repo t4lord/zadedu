@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path
+from django.contrib.auth import views as auth_views
 from edu import views as V
 
 # لو subjects_grid_view غير معرّف، نستخدم term_subjects_view كبديل آمن
@@ -7,6 +8,10 @@ SUBJECTS_GRID = getattr(V, "subjects_grid_view", V.term_subjects_view)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+
+    # حسابات: تسجيل الدخول/الخروج
+    path("accounts/login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
 
     # صحّة
     path("healthz", V.healthz, name="healthz"),
