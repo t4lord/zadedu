@@ -1,9 +1,6 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>دروس المادة — {{ subject.name }} (السنة {{ term.year }} / الفصل {{ term.get_number_display }})</title>
+{% extends "base.html" %}
+{% block title %}دروس المادة — {{ subject.name }}{% endblock %}
+{% block extra_css %}
   <style>
     :root { --bg:#fff; --bd:#e7e7e7; --ink:#111; --muted:#666; --pill:#eef; --pillbd:#dde; --primary:#2563eb; }
     body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg); }
@@ -38,8 +35,9 @@
     .form-addq .choice-row .correct-label,
     .form-addq .choice-row .correct-text { display: none !important; }
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
   <div class="head">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
@@ -89,7 +87,9 @@
 
   <!-- زر عائم لإضافة درس جديد -->
   <a class="fab" href="{% url 'lesson_create' term.id subject.id %}" aria-label="إضافة درس">+</a>
+{% endblock %}
 
+{% block extra_js %}
   <script>
     const search = document.getElementById('search');
     const grid   = document.getElementById('lessonsGrid');
@@ -102,5 +102,4 @@
       });
     });
   </script>
-</body>
-</html>
+{% endblock %}

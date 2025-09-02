@@ -1,11 +1,7 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{{ lesson.title }} — عرض الدرس</title>
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} — عرض الدرس{% endblock %}
+{% block extra_css %}
   <style>
-    body{font-family:system-ui,Tahoma; margin:2rem;}
     .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap}
     .badge{display:inline-block; background:#eef; border:1px solid #dde; padding:.25rem .6rem; border-radius:8px; font-size:.9rem}
     .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-block; cursor:pointer}
@@ -17,8 +13,9 @@
     #editor{line-height:1.9; min-height:200px; border:1px dashed #bbb; padding:1rem; border-radius:10px}
     /* أزيل زر أسئلة الدرس العائم نهائيًا ضمن التنظيف */
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
   <div class="header">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
@@ -65,7 +62,9 @@
     </div>
   </div>
 
-  
+{% endblock %}
+
+{% block extra_js %}
   <script>
     const editToggleBtn = document.getElementById('editToggleBtn');
     const toolbar       = document.getElementById('toolbar');
@@ -139,5 +138,4 @@
       bodyHtmlInput.value = newHtml;
     });
   </script>
-</body>
-</html>
+{% endblock %}

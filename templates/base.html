@@ -5,52 +5,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{% block title %}موقعي الدراسي{% endblock %}</title>
-  <style>
-    :root{
-      --ink:#111; --muted:#666; --bd:#e5e5e5; --bg:#fff; --nav:#0b6; --navHover:#095;
-    }
-    html,body{background:#fafafa; color:var(--ink); font-family:system-ui,Tahoma}
-    .container{max-width:1100px; margin:2rem auto; padding:0 1rem}
-    /* NAV */
-    .site-nav{
-      position:sticky; top:0; z-index:100;
-      background:#fff; border-bottom:1px solid var(--bd);
-      box-shadow:0 2px 10px rgba(0,0,0,.03);
-    }
-    .site-nav__inner{
-      max-width:1100px; margin:0 auto; padding:.6rem 1rem;
-      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
-    }
-    .brand{
-      display:flex; align-items:center; gap:.5rem; text-decoration:none;
-      color:var(--nav); font-weight:700; font-size:1.05rem;
-    }
-    .brand:hover{color:var(--navHover)}
-    .nav-links{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
-    .nav-link{padding:.35rem .6rem; border:1px solid var(--bd); border-radius:10px; text-decoration:none; color:#222; background:#fff}
-    .nav-link:hover{background:#f4fff8}
-    /* رسائل Django */
-    .messages{margin:.8rem 0}
-    .msg{padding:.55rem .7rem; border-radius:10px; border:1px solid var(--bd); background:#fff; margin:.35rem 0; color:#222}
-    .msg.success{border-color:#bfe8c8; background:#e9f9ee}
-    .msg.error{border-color:#f3c2c2; background:#fff6f6}
-  </style>
+  <link rel="stylesheet" href="{% static 'app.css' %}">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-  <header class="site-nav">
-    <div class="site-nav__inner">
-      <!-- شعار + رابط للصفحة الرئيسية -->
-      <a class="brand" href="{% url 'home' %}">📚 مناهجي</a>
-
-      <!-- روابط يمين -->
-      <nav class="nav-links">
-        <a href="{% url 'home' %}" class="nav-link">الصفحة الرئيسية</a>
-        {# أضف روابط أخرى لاحقًا إن رغبت #}
-      </nav>
-    </div>
-  </header>
+  {% include "_navbar.html" %}
 
   <main class="container">
     {% if messages %}

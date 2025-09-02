@@ -1,19 +1,13 @@
-
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>منصتي التعليمية</title>
+{% extends "base.html" %}
+{% block title %}منصتي التعليمية{% endblock %}
+{% block extra_css %}
   <style>
-    body {font-family: system-ui, Tahoma; margin: 2rem;}
     .card {border:1px solid #ddd; padding:1rem; border-radius:12px;}
   </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
   <div class="card">
     <h1>مرحبًا بك 👋</h1>
     <p>هذا الهيكل الأساسي جاهز. سنضيف التفاصيل التعليمية لاحقًا.</p>
   </div>
-</body>
-</html>
+{% endblock %}

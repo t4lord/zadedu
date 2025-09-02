@@ -48,6 +48,7 @@ class LoginRequiredMiddleware:
             '/admin/',         # يملك نظامه الخاص
             settings.LOGIN_URL if hasattr(settings, 'LOGIN_URL') else '/accounts/login/',
             '/accounts/logout/',
+            '/accounts/register/',
         )
 
     def __call__(self, request):

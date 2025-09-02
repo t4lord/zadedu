@@ -1,16 +1,12 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مواد الفصل</title>
+{% extends "base.html" %}
+{% block title %}مواد الفصل{% endblock %}
+{% block extra_css %}
   <style>
     :root{
       --bd:#ddd; --bd2:#bfe8c8; --bg:#fff; --bgToday:#e9f9ee; --ink:#111; --inkToday:#176c3a;
       --pillBg:#eef; --pillBd:#dde; --tagBg:#c9f1d4; --tagBd:#b0e5bf; --muted:#666;
       --chipBg:#f6f7fb; --chipBd:#dfe6ff; --chipHover:#eef4ff;
     }
-    body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink)}
     .header{display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap}
     .badge{display:inline-block; background:var(--pillBg); border:1px solid var(--pillBd); padding:.2rem .5rem; border-radius:8px; font-size:.9rem; margin-inline-end:.4rem}
     .btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; background:#fff; color:inherit; display:flex; align-items:center; justify-content:center; gap:.35rem; cursor:pointer}
@@ -55,9 +51,11 @@
     .examlink:hover{background:var(--chipHover)}
 
     .dbg{font-size:.85rem; color:var(--muted); margin:.35rem 0 .2rem}
+
   </style>
-</head>
-<body data-weekday-db="{{ weekday_db|default:'' }}">
+{% endblock %}
+
+{% block content %}
   <div class="header">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
@@ -70,6 +68,8 @@
   </div>
 
   <h1>اختر المادة</h1>
+
+  
 
   <div class="grid">
     {% for off in offerings %}
@@ -87,7 +87,14 @@
         <div class="title-row">
           <h3 style="margin:.2rem 0">{{ off.subject.name }}</h3>
         </div>
-        <p class="meta">الدروس: <strong>{{ off.lesson_count }}</strong></p>
+        <p class="meta">
+          هذا الأسبوع: <strong>{{ off.weekly_done_count|default:0 }}</strong>/<strong>{{ off.expected_sessions|default:off.sched_days|length|default:0 }}</strong>
+          {% if off.expected_sessions|default:0 == 0 %}
+            <span class="badge" title="بدون جدول أسبوعي">غير مجدول</span>
+          {% elif off.weekly_done_count|default:0 >= off.expected_sessions|default:0 and off.expected_sessions|default:0 > 0 %}
+            <span class="badge" title="اكتمل هذا الأسبوع">مكتمل</span>
+          {% endif %}
+        </p>
 
         {% if debug %}
           <div class="dbg">
@@ -102,8 +109,6 @@
         {% endif %}
 
         <div class="actions">
-          <!-- حذفت زر 📘 دروس المادة -->
-          <!-- عرض عدد الأسئلة الأسبوعية بدل ❓ -->
           <a class="btn" href="{% url 'weekly_quiz_manage' term.id off.subject.id %}">
             الأسئلة الأسبوعية: {{ off.weekly_questions_count|default:0 }}
           </a>
@@ -120,9 +125,12 @@
       <div class="muted">لا توجد مواد لهذا الفصل.</div>
     {% endfor %}
   </div>
+{% endblock %}
 
-  <!-- سكربت التشخيص يبقى كما هو (اختياري) -->
+{% block extra_js %}
   <script>
+    // لأغراض التشخيص فقط
+    document.body.setAttribute('data-weekday-db', '{{ weekday_db|default:"" }}');
     (function () {
       try {
         const now = new Date();
@@ -138,8 +146,8 @@
         console.log('weekday_db from server (page context):', weekdayDb);
         console.groupEnd();
 
-        const rows = [];
-        document.querySelectorAll('.card').forEach((card, idx) => {
+      const rows = [];
+      document.querySelectorAll('.card').forEach((card, idx) => {
           const subject = card.getAttribute('data-subject') || card.querySelector('h3')?.textContent?.trim() || ('#' + (idx+1));
           const schedRaw = (card.getAttribute('data-sched') || '').trim();
           const schedDays = schedRaw ? schedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -162,11 +170,12 @@
           console.groupCollapsed('📊 Summary table (per card)');
           console.table(rows);
           console.groupEnd();
-        }
-      } catch (err) {
-        console.error('❌ Debug script error:', err);
       }
-    })();
+    } catch (err) {
+      console.error('❌ Debug script error:', err);
+    }
+  })();
+
+  // (تم إزالة معاينة اليوم بالشرائح بناءً على طلبكم)
   </script>
-</body>
-</html>
+{% endblock %}

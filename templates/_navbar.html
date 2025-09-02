@@ -1,0 +1,30 @@
+{% load static %}
+<style>
+  .site-nav{position:sticky; top:0; z-index:1000; background:#fff; border-bottom:1px solid #e5e5e5; box-shadow:0 2px 10px rgba(0,0,0,.03)}
+  .site-nav__inner{max-width:1100px; margin:0 auto; padding:.6rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem}
+  .brand{display:flex; align-items:center; gap:.5rem; text-decoration:none; color:#0b6; font-weight:700; font-size:1.05rem}
+  .brand:hover{color:#095}
+  .nav-links{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
+  .nav-link{padding:.35rem .6rem; border:1px solid #e5e5e5; border-radius:10px; text-decoration:none; color:#222; background:#fff}
+  .nav-link:hover{background:#f4fff8}
+  .user{font-weight:600; color:#333; margin-inline-end:.25rem}
+</style>
+<header class="site-nav">
+  <div class="site-nav__inner">
+    <a class="brand" href="{% url 'select_year_term' %}" title="الرئيسية">🏠 مناهجي</a>
+    <nav class="nav-links">
+      <a href="{% url 'select_year_term' %}" class="nav-link" title="الرئيسية">🏠 الرئيسية</a>
+      {% if request.user.is_authenticated %}
+        <span class="user">👤 {{ request.user.username }}</span>
+        <form method="post" action="{% url 'logout' %}" style="display:inline" aria-label="تسجيل الخروج">
+          {% csrf_token %}
+          <button type="submit" class="nav-link" title="تسجيل الخروج">🚪 خروج</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}" class="nav-link" title="تسجيل الدخول">🔑 دخول</a>
+        <a href="{% url 'register' %}?next={{ request.get_full_path|urlencode }}" class="nav-link" title="تسجيل جديد">🆕 تسجيل</a>
+      {% endif %}
+      <a href="/admin/" class="nav-link" title="لوحة الإدارة">🛠️ الإدارة</a>
+    </nav>
+  </div>
+ </header>

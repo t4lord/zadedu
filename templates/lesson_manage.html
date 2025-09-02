@@ -1,9 +1,6 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>إدارة الدرس — {{ lesson.title }}</title>
+{% extends "base.html" %}
+{% block title %}إدارة الدرس — {{ lesson.title }}{% endblock %}
+{% block extra_css %}
   <style>
     :root { --bg:#fff; --bd:#e7e7e7; --muted:#666; --ink:#111; --pill:#eef; --pillbd:#dde; }
     body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink); background:var(--bg)}
@@ -34,8 +31,9 @@
     }
     .sw:focus{outline:2px solid #999}
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
   <div class="mngr__head">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
@@ -94,7 +92,9 @@
 
   <!-- تمت إزالة: إضافة سؤال جديد + قائمة الأسئلة + كل سكربتات الأسئلة -->
 
-  <!-- سكربت محرّر المحتوى (مع ألوان ثابتة) -->
+{% endblock %}
+
+{% block extra_js %}
   <script>
     const editor  = document.getElementById('m_editor');
     const bodyFld = document.getElementById('id_body'); // من cform.body
@@ -138,5 +138,4 @@
       if (bodyFld) bodyFld.value = editor.innerHTML.trim();
     });
   </script>
-</body>
-</html>
+{% endblock %}

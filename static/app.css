@@ -1,0 +1,59 @@
+/* Global base styles */
+:root{
+  --ink:#111; --muted:#666; --bd:#e5e5e5; --bg:#fff;
+  --nav:#0b6; --navHover:#095;
+  --ok:#0a7; --warn:#c77; --info:#3a7;
+}
+html,body{background:#fafafa; color:var(--ink); font-family:system-ui,Tahoma}
+.container{max-width:1100px; margin:2rem auto; padding:0 1rem}
+
+/* Mobile-first tweaks */
+@media (max-width: 640px){
+  .container{margin:1rem auto; padding:0 .75rem}
+  .btn{font-size:1rem; padding:.65rem .9rem; min-height:44px}
+}
+
+/* Navbar */
+.site-nav{position:sticky; top:0; z-index:100; background:#fff; border-bottom:1px solid var(--bd); box-shadow:0 2px 10px rgba(0,0,0,.03)}
+.site-nav__inner{max-width:1100px; margin:0 auto; padding:.6rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem}
+.brand{display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--nav); font-weight:700; font-size:1.05rem}
+.brand:hover{color:var(--navHover)}
+.nav-links{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
+.nav-link{padding:.35rem .6rem; border:1px solid var(--bd); border-radius:10px; text-decoration:none; color:#222; background:#fff}
+.nav-link:hover{background:#f4fff8}
+
+/* Buttons, badges, cards */
+.btn{padding:.5rem .8rem; border-radius:10px; border:1px solid #ccc; text-decoration:none; display:inline-flex; align-items:center; gap:.35rem; background:#fff; color:inherit; cursor:pointer; min-height:40px}
+.btn:hover{background:#f7f7f7}
+.btn--danger{color:#b91c1c; border-color:#f3c2c2}
+.btn--danger:hover{background:#fff6f6}
+.badge{display:inline-block; background:#f2f5ff; border:1px solid #dfe6ff; padding:.25rem .6rem; border-radius:999px}
+.card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff}
+.row{display:flex; gap:.6rem; align-items:center; flex-wrap:wrap}
+
+/* Icon buttons (a11y) */
+.icon-btn{min-width:40px; min-height:40px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px}
+.icon-btn:focus-visible, .btn:focus-visible, .nav-link:focus-visible{outline:3px solid #7fb0ff; outline-offset:2px}
+
+/* Scroll helpers */
+.scroll-x{overflow-x:auto; -webkit-overflow-scrolling:touch}
+
+/* Visually hidden (for screen readers) */
+.sr-only{position:absolute !important; width:1px !important; height:1px !important; padding:0 !important; margin:-1px !important; overflow:hidden !important; clip:rect(0,0,0,0) !important; white-space:nowrap !important; border:0 !important}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important}
+}
+
+/* Django messages */
+.messages{margin:.8rem 0}
+.msg{padding:.55rem .7rem; border-radius:10px; border:1px solid var(--bd); background:#fff; margin:.35rem 0; color:#222}
+.msg.success{border-color:#bfe8c8; background:#e9f9ee}
+.msg.error, .msg.danger{border-color:#f3c2c2; background:#fff6f6}
+.msg.warning{border-color:#ffd28b; background:#fff7e6}
+.msg.info{border-color:#bcd; background:#f4f8ff}
+
+/* Utilities */
+.muted{color:var(--muted)}
+.hidden{display:none}

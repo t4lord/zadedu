@@ -1,13 +1,9 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>تسجيل الدخول</title>
+{% extends "base.html" %}
+{% block title %}تسجيل الدخول{% endblock %}
+{% block extra_css %}
   <style>
     :root{ --bd:#e7e7e7; --ink:#111; --muted:#666; --ok:#0a7; }
-    body{font-family:system-ui,Tahoma; margin:0; background:#f8fafb; color:var(--ink)}
-    .wrap{min-height:100vh; display:grid; place-items:center;}
+    .wrap{min-height:60vh; display:grid; place-items:center;}
     .card{width:min(440px, 92vw); background:#fff; border:1px solid var(--bd); border-radius:14px; padding:1rem 1.1rem; box-shadow:0 6px 24px rgba(0,0,0,.05)}
     h1{margin:.2rem 0 1rem; font-size:1.2rem}
     .inp{width:100%; padding:.6rem .7rem; border:1px solid #ccc; border-radius:10px}
@@ -19,10 +15,8 @@
     .err{border:1px solid #f3c2c2; background:#fff6f6; padding:.55rem .7rem; border-radius:10px; margin-bottom:.7rem}
     label{display:block; margin:.4rem 0 .25rem}
   </style>
-  {% csrf_token %}
-  {% if form.media %}{{ form.media }}{% endif %}
-</head>
-<body>
+{% endblock %}
+{% block content %}
   <div class="wrap">
     <div class="card" role="form" aria-labelledby="loginTitle">
       <h1 id="loginTitle">تسجيل الدخول</h1>
@@ -42,17 +36,15 @@
         <input class="inp" type="password" name="password" required id="id_password" autocomplete="current-password">
 
         <div class="row" style="margin-top:.8rem; justify-content:space-between">
-          <div class="muted">ستحتاج حسابًا مُنشأ من لوحة الإدارة.</div>
+          <div class="muted">ليس لديك حساب؟ سجّل حسابًا جديدًا أدناه.</div>
           <button class="btn btn--ok" type="submit">دخول</button>
         </div>
       </form>
 
       <div class="row" style="margin-top:1rem; justify-content:space-between">
-        <a class="btn" href="/admin/">لوحة الإدارة</a>
+        <a class="btn" href="{% url 'register' %}{% if next %}?next={{ next|urlencode }}{% endif %}">تسجيل حساب جديد</a>
         <a class="btn" href="/">الرجوع للصفحة الرئيسية</a>
       </div>
     </div>
   </div>
-</body>
-</html>
-
+{% endblock %}

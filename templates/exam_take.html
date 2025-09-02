@@ -1,10 +1,6 @@
-{# templates/exam_take.html #}
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{{ scope_label }} — {{ subject.name }}</title>
+{% extends "base.html" %}
+{% block title %}{{ scope_label }} — {{ subject.name }}{% endblock %}
+{% block extra_css %}
   <style>
     :root{ --bd:#e7e7e7; --muted:#666; --ink:#111; --mcq:#7fb0ff; --tf:#2a7d46; --ok:#0a7; }
     body{font-family:system-ui,Tahoma; margin:2rem; color:var(--ink)}
@@ -23,8 +19,9 @@
     .choices li{padding:.3rem .4rem; border-radius:8px; border:1px dashed transparent}
     .score{font-weight:700}
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
   <div class="row" style="justify-content:space-between">
     <div>
       <span class="badge">السنة: {{ term.year }}</span>
@@ -107,6 +104,9 @@
     <div class="card muted">لا توجد أسئلة ضمن هذا النطاق.</div>
   {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
   <script>
     // شفل عناصر DOM
     function shuffleChildren(parent){
@@ -181,5 +181,4 @@
       document.getElementById('resultRow').style.display = 'none';
     });
   </script>
-</body>
-</html>
+{% endblock %}

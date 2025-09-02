@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}تسجيل جديد{% endblock %}
+{% block extra_css %}
+  <style>
+    :root{ --bd:#e7e7e7; --ink:#111; --muted:#666; }
+    .wrap{min-height:60vh; display:grid; place-items:center}
+    .card{width:min(520px, 94vw); background:#fff; border:1px solid var(--bd); border-radius:14px; padding:1rem 1.1rem; box-shadow:0 6px 24px rgba(0,0,0,.05)}
+    h1{margin:.2rem 0 1rem; font-size:1.2rem}
+    .inp{width:100%; padding:.6rem .7rem; border:1px solid #ccc; border-radius:10px}
+    .row{display:flex; gap:.6rem; align-items:center; flex-wrap:wrap}
+    .btn{padding:.55rem .9rem; border-radius:10px; border:1px solid #ccc; background:#fff; cursor:pointer}
+    .btn--ok{background:#0a7; color:#fff; border-color:#0a7}
+    .btn--ok:hover{filter:brightness(0.95)}
+    .err{border:1px solid #f3c2c2; background:#fff6f6; padding:.55rem .7rem; border-radius:10px; margin-bottom:.7rem}
+    label{display:block; margin:.4rem 0 .25rem}
+    ul.errorlist{margin:.2rem 0 .3rem; padding-inline-start:1rem; color:#b00020}
+  </style>
+{% endblock %}
+{% block content %}
+  <div class="wrap">
+    <div class="card" role="form" aria-labelledby="regTitle">
+      <h1 id="regTitle">تسجيل حساب جديد</h1>
+
+      {% if form.errors %}
+        <div class="err">تحقق من الحقول أدناه.</div>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        {{ form.non_field_errors }}
+
+        <label for="id_username">اسم المستخدم</label>
+        {{ form.username }}
+        {{ form.username.errors }}
+
+        <label for="id_password1">كلمة المرور</label>
+        {{ form.password1 }}
+        {{ form.password1.errors }}
+
+        <label for="id_password2">تأكيد كلمة المرور</label>
+        {{ form.password2 }}
+        {{ form.password2.errors }}
+
+        <div class="row" style="margin-top:.8rem; justify-content:space-between">
+          <a class="btn" href="{% url 'login' %}">لدي حساب</a>
+          <button class="btn btn--ok" type="submit">تسجيل</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

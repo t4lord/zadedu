@@ -1,17 +1,15 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>اختيار السنة والفصل</title>
+{% extends "base.html" %}
+{% block title %}اختيار السنة والفصل{% endblock %}
+{% block extra_css %}
   <style>
-    body{font-family:system-ui,Tahoma;margin:2rem}
     .year{border:1px solid #eee;border-radius:12px;padding:1rem;margin-bottom:1rem}
     .grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
     .btn{padding:.6rem .9rem;border:1px solid #ccc;border-radius:10px;background:#fff;cursor:pointer}
     .muted{color:#666}
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 <h1>اختر السنة ثم الفصل</h1>
 
 {% if year_groups %}
@@ -37,12 +35,10 @@
   <p>لا توجد سنين بعد. أضِفها من <a href="/admin/">لوحة الإدارة</a>.</p>
 {% endif %}
 
-
   {% if active_term %}
     <p class="muted">
       الاختيار الحالي: سنة {{ active_term.year }} — فصل {{ active_term.get_number_display|default:active_term.number }}
       — <a href="{% url 'clear_active_term' %}">تغيير</a>
     </p>
   {% endif %}
-</body>
-</html>
+{% endblock %}

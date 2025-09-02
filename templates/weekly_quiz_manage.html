@@ -1,9 +1,6 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>أسئلة أسبوع {{ week.number }} — {{ subject.name }}</title>
+{% extends "base.html" %}
+{% block title %}أسئلة أسبوع {{ week.number }} — {{ subject.name }}{% endblock %}
+{% block extra_css %}
   <style>
     :root{
       --bg:#fff; --ink:#111; --muted:#666; --bd:#e7e7e7;
@@ -68,6 +65,7 @@
     .weekctrl{display:flex; gap:.4rem; align-items:center}
     .wkbtn{width:36px; height:36px; border-radius:50%; border:1px solid #ccc; background:#fff; cursor:pointer; font-weight:700}
     .wknum{min-width:96px; text-align:center; font-weight:700}
+    .wkselect{min-width:120px}
 
     /* أزرار أيقونات */
     .icon-btn{
@@ -82,10 +80,15 @@
     }
     .icon-btn:hover{opacity:.8}
     .icon-btn--danger{color:#b00020}
-  </style>
-</head>
-<body>
 
+    /* Saving overlay */
+    .saving-overlay{position:fixed; inset:0; background:rgba(255,255,255,.7); display:none; align-items:center; justify-content:center; z-index:9999}
+    .saving-overlay--on{display:flex}
+    .saving-box{background:#fff; border:1px solid var(--bd); border-radius:12px; padding:1rem 1.2rem; box-shadow:0 6px 24px rgba(0,0,0,.08); font-weight:700}
+  </style>
+{% endblock %}
+
+{% block content %}
   {% if qform.errors %}
   <div style="border:1px solid #f3d0d0; background:#fff6f6; border-radius:10px; padding:.6rem; margin-bottom:.6rem">
     <strong>تحقّق من المدخلات:</strong>
@@ -113,9 +116,18 @@
   <div class="card">
     <div class="toolbar" style="width:100%">
       <div class="weekctrl" data-weeks="{{ WEEKS_PER_TERM }}">
-        <button class="wkbtn" id="weekPrev" type="button">◀</button>
+        <button class="wkbtn" id="weekPrev" type="button" aria-label="الأسبوع السابق">◀</button>
         <div class="wknum">أسبوع <span id="weekNum">{{ week.number }}</span></div>
-        <button class="wkbtn" id="weekNext" type="button">▶</button>
+        <button class="wkbtn" id="weekNext" type="button" aria-label="الأسبوع التالي">▶</button>
+      </div>
+
+      <div class="row" style="margin-inline-start:.6rem">
+        <label for="weekSelect" class="muted">انتقال سريع:</label>
+        <select id="weekSelect" class="inp wkselect" aria-label="اختيار أسبوع">
+          {% for w in weeks %}
+            <option value="{{ w.number }}" {% if w.number == week.number %}selected{% endif %}>الأسبوع {{ w.number }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="row" id="typeFilters" aria-label="فلترة النوع" style="margin-inline-start:auto">
@@ -317,7 +329,14 @@
     </aside>
   </div>
 
-  <!-- ============ سكربت ============ -->
+  <!-- Overlay: saving options via fetch -->
+  <div id="savingOverlay" class="saving-overlay" aria-live="polite" aria-busy="true">
+    <div class="saving-box">جاري الحفظ… <span id="savingProgress"></span></div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
   <script>
     // فتح/إغلاق بواسطة data-toggle (للأجزاء القديمة إن وُجدت)
     document.querySelectorAll('[data-toggle]').forEach(btn=>{
@@ -368,14 +387,32 @@
           wkNext = document.getElementById('weekNext'),
           wkNum  = document.getElementById('weekNum');
     const maxW   = parseInt(document.querySelector('.weekctrl')?.dataset.weeks || '16', 10);
+    const weekSelect = document.getElementById('weekSelect');
+    const scrollKey = `wq_scroll_{{ term.id }}_{{ subject.id }}`;
+    const restoreKey = `wq_restore_{{ term.id }}_{{ subject.id }}`;
     function gotoWeek(n){
       n=Math.max(1,Math.min(maxW,n));
+      // احفظ موضع التمرير ثم اذهب للأسبوع
+      try { sessionStorage.setItem(scrollKey, String(window.scrollY || window.pageYOffset || 0)); sessionStorage.setItem(restoreKey, '1'); } catch {}
       const url=new URL(window.location.href);
       url.searchParams.set('week', String(n));
       window.location.href=url.toString();
     }
     wkPrev?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)-1));
     wkNext?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)+1));
+    weekSelect?.addEventListener('change', ()=> gotoWeek(parseInt(weekSelect.value, 10)));
+
+    // استرجاع موضع التمرير بعد التنقل بين الأسابيع
+    (function restoreScroll(){
+      try {
+        const should = sessionStorage.getItem(restoreKey) === '1';
+        const v = parseInt(sessionStorage.getItem(scrollKey) || '0', 10);
+        if (should && !isNaN(v)) {
+          window.scrollTo({ top: v, behavior: 'instant' });
+        }
+        sessionStorage.removeItem(restoreKey);
+      } catch {}
+    })();
 
     // ربط أزرار ذات data-target (TF فقط)
     function bindSegToHidden(root) {
@@ -508,16 +545,26 @@
 
       const url = window.location.href;
       const opts=(data.options||[]).map(o=>({text:o.t, ok:!!o.ok, order:9999})).filter(o=>o.text);
+      // عرض مؤشر "جاري الحفظ" وتعطيل الواجهة
+      const overlay = document.getElementById('savingOverlay');
+      const prog = document.getElementById('savingProgress');
+      function setDisabledUI(dis){
+        document.querySelectorAll('button, input, select, textarea').forEach(el=>{ try{ el.disabled = !!dis; }catch{} });
+        document.querySelectorAll('a.btn').forEach(a=>{ if(dis){ a.classList.add('disabled'); a.style.pointerEvents='none'; a.setAttribute('aria-disabled','true'); } else { a.classList.remove('disabled'); a.style.pointerEvents=''; a.removeAttribute('aria-disabled'); } });
+      }
+      if (overlay) overlay.classList.add('saving-overlay--on');
+      setDisabledUI(true);
+      let i = 0; const total = opts.length; if (prog) prog.textContent = `(0/${total})`;
       for (const o of opts) {
         const p = new URLSearchParams();
         p.append('form_name','add_option'); p.append('question_id', qid);
         p.append('text', o.text); if (o.ok) p.append('is_correct','on');
         p.append('order','9999'); if (csrf) p.append('csrfmiddlewaretoken', csrf);
         await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:p.toString(), credentials:'same-origin' });
+        i++; if (prog) prog.textContent = `(${i}/${total})`;
       }
       localStorage.removeItem('pending_mcq_options');
       window.location.reload();
     });
   </script>
-</body>
-</html>
+{% endblock %}

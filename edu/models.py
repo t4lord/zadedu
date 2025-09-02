@@ -2,10 +2,11 @@ from django.db import models
 from django.conf import settings
 
 class Year(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='years')
     number = models.PositiveSmallIntegerField(choices=[(1, 'السنة الأولى'), (2, 'السنة الثانية')])
 
     class Meta:
-        unique_together = [('number',)]
+        unique_together = [('owner', 'number')]
         verbose_name = 'سنة'
         verbose_name_plural = 'سنوات'
 
@@ -27,9 +28,11 @@ class Term(models.Model):
 
 
 class Subject(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subjects')
+    name = models.CharField(max_length=100)
 
     class Meta:
+        unique_together = [('owner', 'name')]
         verbose_name = 'مادة'
         verbose_name_plural = 'مواد'
 

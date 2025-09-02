@@ -3,12 +3,15 @@ from django.apps import apps
 from django.db import connection
 from django.shortcuts import render, redirect, get_object_or_404
 from django import forms
-from django.db.models import Prefetch, Count, Exists, OuterRef
+from django.db.models import Prefetch, Count, Exists, OuterRef, Q
 from django.forms import ModelForm
 from django.conf import settings
 from django.views.decorators.http import require_POST
 from django.http import Http404, HttpResponse, JsonResponse
 from django.utils import timezone
+from django.contrib import messages
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login as auth_login
 from .models import Year, Term, SubjectOffering, Lesson, LessonContent, SubjectSchedule,Week, WeeklyQuiz, WeeklyQuestion,WeeklyChoice,QuestionType
 from django.db import transaction
 from datetime import date
@@ -27,7 +30,7 @@ COOKIE_MAX_AGE = 60 * 60 * 24 * 180  # 180 يوم
 def select_year_term_view(request):
     # العلاقة العكسية الصحيحة هي "terms" (من فحص /diag-models/)
     rel_name = "terms"
-    years_qs = Year.objects.all().order_by("id").prefetch_related(
+    years_qs = Year.objects.filter(owner=request.user).order_by("id").prefetch_related(
         Prefetch(rel_name, queryset=Term.objects.order_by("number"))
     )
 
@@ -38,7 +41,7 @@ def select_year_term_view(request):
 
     # لو كان عندك فصل محفوظ، وجِّه مباشرة لواجهة المناهج
     active_id = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
-    active_term = Term.objects.select_related("year").filter(pk=active_id).first()
+    active_term = Term.objects.select_related("year").filter(pk=active_id, year__owner=request.user).first()
 
     # ملاحظة: عند الرغبة في إيقاف التوجيه المؤتمت مؤقتًا لأجل الاختيار من جديد،
     # يمكنك فتح الصفحة مع ?stay=1
@@ -53,7 +56,7 @@ def select_year_term_view(request):
 @require_POST
 def set_active_term_view(request):
     term_id = request.POST.get("term_id")
-    term = get_object_or_404(Term, pk=term_id)
+    term = get_object_or_404(Term, pk=term_id, year__owner=request.user)
 
     request.session[COOKIE_KEY] = str(term.id)
     # نحو صفحة المناهج
@@ -65,6 +68,7 @@ def set_active_term_view(request):
         samesite="Lax",
         httponly=False,
     )
+    messages.info(request, f"تم اختيار الفصل: سنة {term.year.number} — فصل {term.number}.")
     return resp
 
 def clear_active_term_view(request):
@@ -99,11 +103,41 @@ def diag_models(request):
 def diag_year_term(request):
     rel_name = "terms"
     out = []
-    for y in Year.objects.all().order_by("id"):
+    for y in Year.objects.filter(owner=request.user).order_by("id"):
         terms = list(getattr(y, rel_name).all().order_by("number").values("id", "number"))
         out.append({"year_id": y.id, "year_number": y.number, "terms": terms})
     active = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
     return JsonResponse({"active_term_id": active, "years": out})
+
+# ===================== التسجيل (حساب جديد) =====================
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('select_year_term')
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            # تهيئة بيانات المستخدم: سنوات 1..2 + فصول 1..2 + مواد افتراضية وربطها بالفصول
+            try:
+                y1 = Year.objects.create(owner=user, number=1)
+                y2 = Year.objects.create(owner=user, number=2)
+                for y in (y1, y2):
+                    for n in (1, 2):
+                        term = Term.objects.create(year=y, number=n)
+                        # مواد افتراضية بحسب الإعدادات
+                        for name in getattr(settings, 'DEFAULT_SUBJECTS', []):
+                            subj, _ = Subject.objects.get_or_create(owner=user, name=name)
+                            SubjectOffering.objects.get_or_create(term=term, subject=subj)
+                        # أسابيع افتراضية
+                        ensure_weeks_for_term(term)
+            except Exception:
+                pass
+            auth_login(request, user)
+            next_url = request.POST.get('next') or request.GET.get('next') or '/'
+            return redirect(next_url)
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/register.html', { 'form': form, 'next': request.GET.get('next','') })
 
 # ===================== واجهات قديمة (اختياري إبقاؤها) =====================
 
@@ -114,7 +148,7 @@ def home_view(request):
     return redirect('select_term')
 
 def select_term_view(request):
-    years = Year.objects.order_by('number').prefetch_related('terms')
+    years = Year.objects.filter(owner=request.user).order_by('number').prefetch_related('terms')
     return render(request, 'select_term.html', {'years': years})
 
 def set_term_view(request):
@@ -125,10 +159,11 @@ def set_term_view(request):
         term_num = int(request.POST.get('term', 0))
     except (TypeError, ValueError):
         return redirect('select_term')
-    term = Term.objects.filter(year__number=year_num, number=term_num).first()
+    term = Term.objects.filter(year__owner=request.user, year__number=year_num, number=term_num).first()
     if not term:
         return redirect('select_term')
     request.session[SESSION_KEY] = term.id
+    messages.info(request, f"تم اختيار الفصل: سنة {term.year.number} — فصل {term.number}.")
     return redirect('term_subjects', term_id=term.id)
 
 def change_term_view(request):
@@ -139,13 +174,13 @@ def change_term_view(request):
 
 # ===================== صفحة مناهج الفصل =====================
 
-from django.db.models import Min, Exists, OuterRef, Count
+from django.db.models import Min, Exists, OuterRef, Count, Q
 from collections import defaultdict
 AR_DAYS = ['الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت','الأحد']
 
 
 def term_subjects_view(request, term_id: int):
-    term = get_object_or_404(Term, id=term_id)
+    term = get_object_or_404(Term, id=term_id, year__owner=request.user)
 
     # اليوم الحالي + معاينة ?preview_day=0..6
     weekday = timezone.localdate().weekday()
@@ -165,12 +200,22 @@ def term_subjects_view(request, term_id: int):
         weekday=weekday_db
     )
 
+    # أسبوع التقدّم (?week=1..WEEKS_PER_TERM)
+    try:
+        progress_week = int(request.GET.get('week', '1'))
+    except ValueError:
+        progress_week = 1
+    progress_week = max(1, min(WEEKS_PER_TERM, progress_week))
+
     offerings_qs = (
         SubjectOffering.objects
         .filter(term=term)
         .select_related('subject')
         .annotate(
             lesson_count=Count('lessons', distinct=True),
+            completed_count=Count('lessons', filter=Q(lessons__content__body__isnull=False) & ~Q(lessons__content__body=''), distinct=True),
+            expected_sessions=Count('schedules__weekday', distinct=True),
+            weekly_done_count=Count('weekly_quizzes__questions', filter=Q(weekly_quizzes__week__number=progress_week), distinct=True),
             is_today=Exists(schedules_today),
         )
         .order_by('subject__name')
@@ -187,6 +232,8 @@ def term_subjects_view(request, term_id: int):
     offerings = list(offerings_qs)
     for o in offerings:
         o.sched_days = sched_map.get(o.id, [])  # خاصية آمنة للاستخدام بالقالب
+        if not getattr(o, 'expected_sessions', 0):
+            o.expected_sessions = 1 if (getattr(o, 'subject', None) and o.subject.name == 'الفقه') else 2
 
     return render(request, 'term_subjects.html', {
         'term': term,
@@ -196,6 +243,8 @@ def term_subjects_view(request, term_id: int):
         'weekday_db': weekday_db,
         'base_is_one': base_is_one,
         'has_any_schedule': bool(rows),
+        'AR_DAYS': AR_DAYS,
+        'progress_week': progress_week,
         'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
 
@@ -204,9 +253,9 @@ from django.db.models import Min, Exists, OuterRef, Count
 # alias بسيط لتجنّب كسر الروابط
 # alias بسيط لتجنّب كسر الروابط
 def subjects_grid_view(request, term_id): 
-    from django.db.models import Min, Exists, OuterRef, Count
+    from django.db.models import Min, Exists, OuterRef, Count, Q
 
-    term = get_object_or_404(Term, id=term_id)
+    term = get_object_or_404(Term, id=term_id, year__owner=request.user)
 
     # اليوم الحالي بالتوقيت المحلي
     weekday = timezone.localdate().weekday()  # Mon=0 .. Sun=6
@@ -222,6 +271,13 @@ def subjects_grid_view(request, term_id):
         weekday=weekday_db
     )
 
+    # أسبوع التقدّم (?week=1..WEEKS_PER_TERM)
+    try:
+        progress_week = int(request.GET.get('week', '1'))
+    except ValueError:
+        progress_week = 1
+    progress_week = max(1, min(WEEKS_PER_TERM, progress_week))
+
     # اجلب العروض مع subject وعدد الدروس و is_today + **prefetch schedules**
     # ✅ إضافة weekly_questions_count لعرض عدد الأسئلة الأسبوعية في القالب
     offerings = list(
@@ -231,6 +287,9 @@ def subjects_grid_view(request, term_id):
         .prefetch_related('schedules')  # لكي تستفيد sched_days من الكاش وتتجنب N+1
         .annotate(
             lesson_count=Count('lessons', distinct=True),
+            completed_count=Count('lessons', filter=Q(lessons__content__body__isnull=False) & ~Q(lessons__content__body=''), distinct=True),
+            expected_sessions=Count('schedules__weekday', distinct=True),
+            weekly_done_count=Count('weekly_quizzes__questions', filter=Q(weekly_quizzes__week__number=progress_week), distinct=True),
             is_today=Exists(schedules_today),
             weekly_questions_count=Count('weekly_quizzes__questions', distinct=True),  # ← هذا السطر الجديد
         )
@@ -240,6 +299,11 @@ def subjects_grid_view(request, term_id):
 
     has_any_schedule = SubjectSchedule.objects.filter(offering__term=term).exists()
 
+    # ضبط القيمة الافتراضية المتوقعة للجلسات الأسبوعية عند عدم وجود جدول: 2، عدا الفقه 1
+    for o in offerings:
+        if not getattr(o, 'expected_sessions', 0):
+            o.expected_sessions = 1 if (getattr(o, 'subject', None) and o.subject.name == 'الفقه') else 2
+
     return render(request, 'term_subjects.html', {
         'term': term,
         'offerings': offerings,
@@ -248,6 +312,8 @@ def subjects_grid_view(request, term_id):
         'weekday_db': weekday_db,
         'base_is_one': base_is_one,
         'has_any_schedule': has_any_schedule,
+        'AR_DAYS': AR_DAYS,
+        'progress_week': progress_week,
         'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
 
@@ -272,13 +338,13 @@ class LessonContentForm(ModelForm):
 
 # ===================== Helpers =====================
 
-def get_offering_or_404(term_id, subject_id):
-    return get_object_or_404(SubjectOffering, term_id=term_id, subject_id=subject_id)
+def get_offering_or_404(request, term_id, subject_id):
+    return get_object_or_404(SubjectOffering, term_id=term_id, subject_id=subject_id, term__year__owner=request.user)
 
 # ===================== قائمة الدروس + CRUD =====================
 
 def lessons_list_view(request, term_id, subject_id):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     lessons = (
         offering.lessons
         .select_related('content')  # لتحسين الاستعلام عند عرض توفر المحتوى
@@ -292,7 +358,7 @@ def lessons_list_view(request, term_id, subject_id):
     })
 
 def lesson_create_view(request, term_id, subject_id):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     if request.method == 'POST':
         form = LessonForm(request.POST)
         if form.is_valid():
@@ -300,28 +366,31 @@ def lesson_create_view(request, term_id, subject_id):
             lesson.offering = offering
             lesson.save()
             LessonContent.objects.get_or_create(lesson=lesson)
+            messages.success(request, 'تم إنشاء الدرس بنجاح.')
             return redirect('lessons_list', term_id=term_id, subject_id=subject_id)
     else:
         form = LessonForm()
     return render(request, 'lesson_form.html', {'offering': offering, 'form': form, 'mode': 'create'})
 
 def lesson_update_view(request, term_id, subject_id, lesson_id):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
     if request.method == 'POST':
         form = LessonForm(request.POST, instance=lesson)
         if form.is_valid():
             form.save()
+            messages.success(request, 'تم تحديث بيانات الدرس بنجاح.')
             return redirect('lessons_list', term_id=term_id, subject_id=subject_id)
     else:
         form = LessonForm(instance=lesson)
     return render(request, 'lesson_form.html', {'offering': offering, 'form': form, 'mode': 'update', 'lesson': lesson})
 
 def lesson_delete_view(request, term_id, subject_id, lesson_id):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
     if request.method == 'POST':
         lesson.delete()
+        messages.success(request, 'تم حذف الدرس.')
         return redirect('lessons_list', term_id=term_id, subject_id=subject_id)
     return render(request, 'lesson_confirm_delete.html', {'offering': offering, 'lesson': lesson})
 
@@ -331,7 +400,7 @@ def lesson_manage_view(request, term_id, subject_id, lesson_id):
     """
     إدارة محتوى الدرس فقط (تمت إزالة إدارة أسئلة الدرس ضمن التنظيف تمهيدًا للنظام الأسبوعي).
     """
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
     content, _ = LessonContent.objects.get_or_create(lesson=lesson)
 
@@ -340,6 +409,7 @@ def lesson_manage_view(request, term_id, subject_id, lesson_id):
         cform = LessonContentForm(request.POST, instance=content)
         if cform.is_valid():
             cform.save()
+            messages.success(request, 'تم حفظ محتوى الدرس.')
             return redirect('lesson_manage', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
     else:
         cform = LessonContentForm(instance=content)
@@ -356,7 +426,7 @@ def lesson_manage_view(request, term_id, subject_id, lesson_id):
 
 def lesson_detail_view(request, term_id, subject_id, lesson_id):
     """يعرض محتوى الدرس ويحفظه."""
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     lesson = get_object_or_404(Lesson, id=lesson_id, offering=offering)
     content, _ = LessonContent.objects.get_or_create(lesson=lesson)
 
@@ -364,6 +434,7 @@ def lesson_detail_view(request, term_id, subject_id, lesson_id):
         body_html = request.POST.get('body_html', '').strip()
         content.body = body_html
         content.save()
+        messages.success(request, 'تم حفظ المحتوى.')
         return redirect('lesson_detail', term_id=term_id, subject_id=subject_id, lesson_id=lesson_id)
 
     return render(request, 'lesson_detail.html', {
@@ -408,7 +479,7 @@ class WeeklyChoiceForm(forms.ModelForm):
 
 @transaction.atomic
 def weekly_quiz_manage_view(request, term_id, subject_id):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     term = offering.term
 
     ensure_weeks_for_term(term)
@@ -438,6 +509,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
                 q.correct_bool = None
             if not qform.errors:
                 q.save()
+                messages.success(request, 'تم إضافة السؤال.')
                 return redirect(f"{request.path}?week={week_number}")
     else:
         qform = WeeklyQuestionForm()
@@ -455,6 +527,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
                 q.correct_bool = None
             if not qedit.errors:
                 q.save()
+                messages.success(request, 'تم تعديل السؤال.')
                 return redirect(f"{request.path}?week={week_number}")
 
     # ============ حذف سؤال ============
@@ -462,6 +535,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
         qid = request.POST.get('question_id')
         qobj = get_object_or_404(WeeklyQuestion, id=qid, quiz=quiz)
         qobj.delete()
+        messages.success(request, 'تم حذف السؤال.')
         return redirect(f"{request.path}?week={week_number}")
 
     # ============ خيارات MCQ: إضافة/تعديل/حذف/تعيين صحيح ============
@@ -476,6 +550,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
             # لو تم وضع is_correct=True لهذا الخيار، ألغِ الصح عن بقية الخيارات
             if opt.is_correct:
                 WeeklyChoice.objects.filter(question=qobj).exclude(id=opt.id).update(is_correct=False)
+            messages.success(request, 'تم إضافة الخيار.')
             return redirect(f"{request.path}?week={week_number}")
 
     if request.method == 'POST' and request.POST.get('form_name') == 'edit_option':
@@ -486,12 +561,14 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
             opt = oform.save()
             if opt.is_correct:
                 WeeklyChoice.objects.filter(question=opt.question).exclude(id=opt.id).update(is_correct=False)
+            messages.success(request, 'تم حفظ التعديلات على الخيار.')
             return redirect(f"{request.path}?week={week_number}")
 
     if request.method == 'POST' and request.POST.get('form_name') == 'delete_option':
         oid = request.POST.get('option_id')
         opt = get_object_or_404(WeeklyChoice, id=oid, question__quiz=quiz, question__qtype=QuestionType.MCQ)
         opt.delete()
+        messages.success(request, 'تم حذف الخيار.')
         return redirect(f"{request.path}?week={week_number}")
 
     # ============ بيانات العرض ============
@@ -518,7 +595,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
 from django.db.models import Prefetch
 
 def exam_take_view(request, term_id: int, subject_id: int, scope: str):
-    offering = get_offering_or_404(term_id, subject_id)
+    offering = get_offering_or_404(request, term_id, subject_id)
     term = offering.term
     subject = offering.subject  # اختياري لو تحتاجه للعرض فقط
 

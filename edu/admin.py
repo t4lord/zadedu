@@ -25,6 +25,10 @@ class YearAdmin(admin.ModelAdmin):
     list_display = ('id', 'number')
     list_filter = ('number',)
     actions = [ensure_terms_action]
+    def save_model(self, request, obj, form, change):
+        if not getattr(obj, 'owner_id', None):
+            obj.owner = request.user
+        return super().save_model(request, obj, form, change)
 
 # ===== أكشن: إنشاء مواد افتراضية (SubjectOffering) للترم =====
 OFFERING_MODEL_NAME = "SubjectOffering"  # لدينا موديل الربط فعلاً
@@ -44,8 +48,12 @@ def apply_default_subjects(modeladmin, request, queryset):
 
     created_total = 0
     for term in queryset:
+        owner = getattr(term.year, 'owner', None)
         for name in names:
-            subj, _ = Subject.objects.get_or_create(name=name)
+            if owner:
+                subj, _ = Subject.objects.get_or_create(owner=owner, name=name)
+            else:
+                subj, _ = Subject.objects.get_or_create(name=name)
             if Offering:
                 _, created = Offering.objects.get_or_create(term=term, subject=subj)
                 created_total += int(created)
@@ -65,6 +73,10 @@ class TermAdmin(admin.ModelAdmin):
 class SubjectAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
     search_fields = ("name",)
+    def save_model(self, request, obj, form, change):
+        if not getattr(obj, 'owner_id', None):
+            obj.owner = request.user
+        return super().save_model(request, obj, form, change)
 
 @admin.register(SubjectOffering)
 class SubjectOfferingAdmin(admin.ModelAdmin):

@@ -95,7 +95,7 @@ if IS_PROD:
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # =========[ 6) الضبط العام ]=========
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "ar"
 TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True
 USE_TZ = True

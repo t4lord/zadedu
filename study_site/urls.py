@@ -11,7 +11,8 @@ urlpatterns = [
 
     # حسابات: تسجيل الدخول/الخروج
     path("accounts/login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
-    path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("accounts/logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
+    path("accounts/register/", V.register_view, name="register"),
 
     # صحّة
     path("healthz", V.healthz, name="healthz"),
