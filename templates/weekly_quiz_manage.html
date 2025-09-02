@@ -30,7 +30,7 @@
     .chip{border:1px solid var(--chipbd); background:var(--chip); border-radius:999px; padding:.28rem .7rem; cursor:pointer; font-size:.92rem}
     .chip.active{background:#eaf1ff; border-color:#aac7ff}
 
-    /* بطاقات الأسئلة مع فصل بصري قوي */
+    /* بطاقات الأسئلة */
     #qList{display:flex; flex-direction:column; gap:1rem}
     .qcard{
       position:relative;
@@ -48,13 +48,16 @@
     .label{display:inline-block; background:var(--label); border:1px solid var(--labelbd); border-radius:999px; padding:.1rem .6rem; font-size:.88rem}
     .qnum{font-weight:700}
     .qtitle{font-weight:700; margin:.4rem 0 .6rem 0; font-size:1.02rem}
+
     .opts{display:flex; flex-direction:column; gap:.45rem}
     .opt{border:1px dashed #e6e6e6; border-radius:10px; padding:.5rem .6rem}
-    .ok{color:var(--ok); font-weight:600}
     .opthdr{display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap}
     .optedit{display:none; margin-top:.35rem}
     .optedit .inp{min-width:220px}
     .qedit{display:none; margin-top:.6rem; border-top:1px dashed var(--bd); padding-top:.6rem}
+
+    /* تمييز الصحيح */
+    .opt--correct{background:#e9f9ee; border-color:#bfe8c8}
 
     /* segmented */
     .seg{display:flex; gap:.4rem; align-items:center; flex-wrap:wrap}
@@ -65,6 +68,20 @@
     .weekctrl{display:flex; gap:.4rem; align-items:center}
     .wkbtn{width:36px; height:36px; border-radius:50%; border:1px solid #ccc; background:#fff; cursor:pointer; font-weight:700}
     .wknum{min-width:96px; text-align:center; font-weight:700}
+
+    /* أزرار أيقونات */
+    .icon-btn{
+      background:transparent;
+      border:0;
+      padding:.25rem .35rem;
+      line-height:1;
+      font-size:18px;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+    }
+    .icon-btn:hover{opacity:.8}
+    .icon-btn--danger{color:#b00020}
   </style>
 </head>
 <body>
@@ -125,12 +142,13 @@
                   <span class="label">{% if q.qtype == QuestionType.MCQ %}اختيارات{% else %}صح/خطأ{% endif %}</span>
                 </div>
                 <div class="row">
-                  <button class="btn" type="button" data-toggle="#qedit-{{ q.id }}">✏️ تعديل</button>
+                  <!-- تعديل/حذف مرة واحدة فقط لكل سؤال -->
+                  <button class="icon-btn toggle-edit" type="button" data-qid="{{ q.id }}" title="تعديل" aria-label="تعديل">✏️</button>
                   <form method="post" onsubmit="return confirm('حذف هذا السؤال؟');">
                     {% csrf_token %}
                     <input type="hidden" name="form_name" value="delete_question">
                     <input type="hidden" name="question_id" value="{{ q.id }}">
-                    <button class="btn btn--danger" type="submit">🗑️ حذف</button>
+                    <button class="icon-btn icon-btn--danger" type="submit" title="حذف" aria-label="حذف">🗑️</button>
                   </form>
                 </div>
               </div>
@@ -138,25 +156,14 @@
               <div class="qtitle">{{ q.text }}</div>
 
               {% if q.qtype == QuestionType.MCQ %}
-                <!-- قائمة الخيارات + تحرير/حذف فقط (تم حذف واجهة "إضافة خيار") -->
+                <!-- قائمة الخيارات: بدون أزرار في رأس كل خيار، الصحيح بخلفية -->
                 <div class="opts">
                   {% for opt in q.choices.all %}
-                    <div class="opt" id="opt-{{ opt.id }}">
+                    <div class="opt {% if opt.is_correct %}opt--correct{% endif %}" id="opt-{{ opt.id }}">
                       <div class="opthdr">
-                        <div>
-                          {% if opt.is_correct %}<span class="ok">✔ صحيح</span>{% else %}<span class="muted">—</span>{% endif %}
-                          <strong>{{ opt.text }}</strong>
-                        </div>
-                        <div class="row">
-                          <button class="btn" type="button" data-toggle="#optedit-{{ opt.id }}">تعديل</button>
-                          <form method="post" onsubmit="return confirm('حذف هذا الخيار؟');">
-                            {% csrf_token %}
-                            <input type="hidden" name="form_name" value="delete_option">
-                            <input type="hidden" name="option_id" value="{{ opt.id }}">
-                            <button class="btn btn--danger" type="submit">حذف</button>
-                          </form>
-                        </div>
+                        <div><strong>{{ opt.text }}</strong></div>
                       </div>
+                      <!-- مُحرِّر الخيار (يظهر فقط عند فتح تعديل السؤال) -->
                       <div class="optedit" id="optedit-{{ opt.id }}">
                         <form method="post" class="row" style="margin-top:.35rem">
                           {% csrf_token %}
@@ -164,7 +171,8 @@
                           <input type="hidden" name="option_id" value="{{ opt.id }}">
                           <input type="hidden" name="order" value="{{ opt.order|default:0 }}">
                           <input class="inp" name="text" value="{{ opt.text }}" placeholder="نص الخيار" style="flex:1">
-                          <label class="row" style="align-items:center">صحيح؟
+                          <label class="row" style="align-items:center">
+                            <span class="muted" style="margin-inline-end:.35rem">صحيح؟</span>
                             <input type="checkbox" name="is_correct" {% if opt.is_correct %}checked{% endif %}>
                           </label>
                           <button class="btn" type="submit">💾 حفظ</button>
@@ -184,15 +192,25 @@
                     <input type="hidden" name="form_name" value="edit_question_{{ q.id }}">
                     <input type="hidden" name="question_id" value="{{ q.id }}">
                     <input type="hidden" name="qtype" value="MCQ">
-                    <input type="hidden" name="order" value="{{ q.order|default:0 }}">
+                    <input type="hidden" name="order" value="{{ q.order|default:0 }}"/>
                     <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
                     <button class="btn" type="submit">💾 حفظ السؤال</button>
                   </form>
                 </div>
 
               {% else %} {# TF #}
-                <!-- تحرير سؤال صح/خطأ بأيقونات -->
-                <div class="qedit" id="qedit-{{ q.id }}" style="display:block">
+
+                {# عرض (قراءة) — لا حفظ هنا، الصحيح ملوّن بدون رموز #}
+                <div class="qview" id="qview-{{ q.id }}">
+                  <div class="seg" aria-label="الإجابة الصحيحة" style="margin-bottom:.5rem">
+                    <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" disabled>صح</button>
+                    <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" disabled>خطأ</button>
+                  </div>
+                  <div class="qtitle" style="margin-top:.4rem">{{ q.text }}</div>
+                </div>
+
+                {# تعديل (مخفي افتراضياً) — يظهر عند الضغط على ✏️ من رأس البطاقة #}
+                <div class="qedit" id="qedit-{{ q.id }}">
                   <form method="post" class="row" data-tf="{{ q.id }}">
                     {% csrf_token %}
                     <input type="hidden" name="form_name" value="edit_question_{{ q.id }}">
@@ -200,14 +218,19 @@
                     <input type="hidden" name="qtype" value="TF">
                     <input type="hidden" name="order" value="{{ q.order|default:0 }}">
                     <input type="hidden" name="correct_bool" id="cb-{{ q.id }}" value="{% if q.correct_bool is True %}2{% elif q.correct_bool is False %}3{% else %}{% endif %}">
+
                     <div class="seg" aria-label="الإجابة الصحيحة">
-                      <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="2">✔ صح</button>
-                      <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="3">✗ خطأ</button>
+                      <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="2">صح</button>
+                      <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="3">خطأ</button>
                     </div>
+
                     <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
-                    <button class="btn" type="submit">💾 حفظ</button>
+
+                    <!-- حفظ فقط عند التعديل -->
+                    <button class="btn" type="submit" title="حفظ">💾 حفظ</button>
                   </form>
                 </div>
+
               {% endif %}
             </article>
           {% endfor %}
@@ -224,14 +247,12 @@
         {% csrf_token %}
         <input type="hidden" name="form_name" value="add_question">
 
-        <label>نص السؤال</label>
         {{ qform.text }}
 
         <!-- نوع السؤال بأيقونات -->
         <input type="hidden" name="qtype" id="qtypeHidden" value="MCQ">
         <div class="row" style="margin-top:.5rem; align-items:flex-end">
           <div style="flex:1">
-            <label>النوع</label>
             <div class="seg" id="qtypeSeg">
               <button type="button" class="seg__btn active" data-val="MCQ">اختيارات</button>
               <button type="button" class="seg__btn" data-val="TF">صح/خطأ</button>
@@ -243,8 +264,8 @@
             <label>الإجابة الصحيحة</label>
             <input type="hidden" name="correct_bool" id="addCorrectBool" value="">
             <div class="seg">
-              <button type="button" class="seg__btn ok" data-target="#addCorrectBool" data-val="2">✔ صح</button>
-              <button type="button" class="seg__btn" data-target="#addCorrectBool" data-val="3">✗ خطأ</button>
+              <button type="button" class="seg__btn ok" data-target="#addCorrectBool" data-val="2">صح</button>
+              <button type="button" class="seg__btn" data-target="#addCorrectBool" data-val="3">خطأ</button>
             </div>
           </div>
         </div>
@@ -256,22 +277,31 @@
               <label>الخيار 1</label>
               <input class="inp" name="mcq_choice1" placeholder="نص الخيار 1">
             </div>
-            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="1">1</button></div>
+            <div class="seg">
+              <button type="button" class="seg__btn" data-mcq-radio="1" aria-label="تعيين الخيار 1 كإجابة صحيحة">1</button>
+            </div>
           </div>
+
           <div class="row" style="align-items:flex-end; margin-top:.35rem">
             <div style="flex:1">
               <label>الخيار 2</label>
               <input class="inp" name="mcq_choice2" placeholder="نص الخيار 2">
             </div>
-            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="2">2</button></div>
+            <div class="seg">
+              <button type="button" class="seg__btn" data-mcq-radio="2" aria-label="تعيين الخيار 2 كإجابة صحيحة">2</button>
+            </div>
           </div>
+
           <div class="row" style="align-items:flex-end; margin-top:.35rem">
             <div style="flex:1">
-              <label>الخيار 3 (اختياري)</label>
+              <label>الخيار 3</label>
               <input class="inp" name="mcq_choice3" placeholder="نص الخيار 3 (اختياري)">
             </div>
-            <div class="seg"><span class="muted">صحيح؟</span><button type="button" class="seg__btn" data-mcq-radio="3">3</button></div>
+            <div class="seg">
+              <button type="button" class="seg__btn" data-mcq-radio="3" aria-label="تعيين الخيار 3 كإجابة صحيحة">3</button>
+            </div>
           </div>
+
           <input type="hidden" name="mcq_correct" id="mcqCorrect" value="">
           <small class="muted" style="display:block; margin-top:.35rem">
             تُنشأ الخيارات مباشرة بعد حفظ السؤال. الترتيب تلقائي حسب الإضافة.
@@ -289,11 +319,25 @@
 
   <!-- ============ سكربت ============ -->
   <script>
-    // فتح/إغلاق الكتل
+    // فتح/إغلاق بواسطة data-toggle (للأجزاء القديمة إن وُجدت)
     document.querySelectorAll('[data-toggle]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const el = document.querySelector(btn.getAttribute('data-toggle'));
         if(!el) return; el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+      });
+    });
+
+    // زر ✏️ في رأس السؤال: يفتح qedit ويُظهر محررات الخيارات التابعة له
+    document.querySelectorAll('.toggle-edit').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const card = btn.closest('.qcard');
+        if (!card) return;
+        const qedit = card.querySelector('.qedit');
+        if (qedit) qedit.style.display = (qedit.style.display==='block') ? 'none' : 'block';
+        // أظهر/أخفِ كل محررات الخيارات الخاصة بهذا السؤال
+        card.querySelectorAll('.optedit').forEach(el=>{
+          el.style.display = qedit && qedit.style.display==='block' ? 'block' : 'none';
+        });
       });
     });
 
@@ -313,13 +357,23 @@
         card.style.display = (okType && okText) ? '' : 'none';
       });
     }
-    chips.forEach(c=>c.addEventListener('click', ()=>{ chips.forEach(x=>x.classList.remove('active')); c.classList.add('active'); activeType=c.dataset.type; applyFilter(); }));
+    chips.forEach(c=>c.addEventListener('click', ()=>{
+      chips.forEach(x=>x.classList.remove('active'));
+      c.classList.add('active'); activeType=c.dataset.type; applyFilter();
+    }));
     search?.addEventListener('input', applyFilter);
 
     // تنقّل الأسابيع
-    const wkPrev = document.getElementById('weekPrev'), wkNext = document.getElementById('weekNext'), wkNum = document.getElementById('weekNum');
+    const wkPrev = document.getElementById('weekPrev'),
+          wkNext = document.getElementById('weekNext'),
+          wkNum  = document.getElementById('weekNum');
     const maxW   = parseInt(document.querySelector('.weekctrl')?.dataset.weeks || '16', 10);
-    function gotoWeek(n){ n=Math.max(1,Math.min(maxW,n)); const url=new URL(window.location.href); url.searchParams.set('week', String(n)); window.location.href=url.toString(); }
+    function gotoWeek(n){
+      n=Math.max(1,Math.min(maxW,n));
+      const url=new URL(window.location.href);
+      url.searchParams.set('week', String(n));
+      window.location.href=url.toString();
+    }
     wkPrev?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)-1));
     wkNext?.addEventListener('click', ()=> gotoWeek(parseInt(wkNum.textContent,10)+1));
 
@@ -348,7 +402,15 @@
     const mcqInputs = ['mcq_choice1','mcq_choice2','mcq_choice3'].map(n => addForm?.querySelector(`[name="${n}"]`));
 
     function setMCQRequirements(enable){
-      mcqInputs.forEach((inp, idx)=>{ if(!inp) return; if(enable){ inp.removeAttribute('disabled'); if(idx<2) inp.setAttribute('required','required'); else inp.removeAttribute('required'); } else { inp.setAttribute('disabled','disabled'); inp.removeAttribute('required'); } });
+      mcqInputs.forEach((inp, idx)=>{
+        if(!inp) return;
+        if(enable){
+          inp.removeAttribute('disabled');
+          if(idx<2) inp.setAttribute('required','required'); else inp.removeAttribute('required');
+        }else{
+          inp.setAttribute('disabled','disabled'); inp.removeAttribute('required');
+        }
+      });
     }
     qtypeSeg?.querySelectorAll('.seg__btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -356,8 +418,12 @@
         btn.classList.add('active');
         const v = btn.dataset.val;
         qtypeHidden.value = v;
-        if (v === 'TF'){ tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false); }
-        else { tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true); if(addCorrectBool) addCorrectBool.value=''; }
+        if (v === 'TF'){
+          tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false);
+        } else {
+          tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true);
+          if(addCorrectBool) addCorrectBool.value='';
+        }
       });
     });
 
@@ -373,8 +439,11 @@
 
     // حالة أولية
     (function ini(){
-      if (qtypeHidden?.value === 'TF'){ tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false); }
-      else { tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true); }
+      if (qtypeHidden?.value === 'TF'){
+        tfWrap.style.display=''; mcqWrap.style.display='none'; setMCQRequirements(false);
+      } else {
+        tfWrap.style.display='none'; mcqWrap.style.display=''; setMCQRequirements(true);
+      }
     })();
 
     // تحقق قبل الإرسال + تخزين خيارات MCQ مؤقتًا
