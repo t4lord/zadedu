@@ -203,7 +203,7 @@ from collections import defaultdict
 from django.db.models import Min, Exists, OuterRef, Count
 # alias بسيط لتجنّب كسر الروابط
 # alias بسيط لتجنّب كسر الروابط
-def subjects_grid_view(request, term_id):
+def subjects_grid_view(request, term_id): 
     from django.db.models import Min, Exists, OuterRef, Count
 
     term = get_object_or_404(Term, id=term_id)
@@ -223,14 +223,16 @@ def subjects_grid_view(request, term_id):
     )
 
     # اجلب العروض مع subject وعدد الدروس و is_today + **prefetch schedules**
+    # ✅ إضافة weekly_questions_count لعرض عدد الأسئلة الأسبوعية في القالب
     offerings = list(
         SubjectOffering.objects
         .filter(term=term)
         .select_related('subject')
-        .prefetch_related('schedules')  # ✅ حتى خاصية sched_days تستخدم الكاش بدون N+1
+        .prefetch_related('schedules')  # لكي تستفيد sched_days من الكاش وتتجنب N+1
         .annotate(
             lesson_count=Count('lessons', distinct=True),
             is_today=Exists(schedules_today),
+            weekly_questions_count=Count('weekly_quizzes__questions', distinct=True),  # ← هذا السطر الجديد
         )
         .order_by('subject__name')
         .distinct()
@@ -248,7 +250,6 @@ def subjects_grid_view(request, term_id):
         'has_any_schedule': has_any_schedule,
         'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
-
 
 # ===================== Forms =====================
 
