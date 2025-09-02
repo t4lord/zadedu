@@ -36,8 +36,14 @@ def select_year_term_view(request):
         terms_manager = getattr(y, rel_name)  # y.terms
         year_groups.append({"year": y, "terms": list(terms_manager.all())})
 
+    # لو كان عندك فصل محفوظ، وجِّه مباشرة لواجهة المناهج
     active_id = request.session.get(COOKIE_KEY) or request.COOKIES.get(COOKIE_KEY)
     active_term = Term.objects.select_related("year").filter(pk=active_id).first()
+
+    # ملاحظة: عند الرغبة في إيقاف التوجيه المؤتمت مؤقتًا لأجل الاختيار من جديد،
+    # يمكنك فتح الصفحة مع ?stay=1
+    if active_term and request.GET.get("stay") != "1":
+        return redirect("subjects_grid", term_id=active_term.id)
 
     return render(request, "select_year_term.html", {
         "year_groups": year_groups,
