@@ -50,11 +50,38 @@
 
   <div class="mngr__grid">
     <!-- محتوى الدرس فقط -->
-    <section class="card">
+<section class="card card--with-side-toolbar">
+  <!-- شريط أدوات التحرير في الهامش الأيمن، عمودي ولاصق أثناء التمرير -->
+  <style>
+    .card.card--with-side-toolbar { display: flow-root; position: relative; padding-inline-end: 2rem; }
+    .toolbar--side {
+      position: sticky;
+      top: 3rem;
+      float: right; /* يمين */
+      margin-left: 1rem;
+      display: flex;
+      flex-direction: column; /* عمودي */
+      gap: .35rem;
+      align-items: center;
+      padding: .2rem;
+      background: rgba(255,255,255,.95);
+      border: 1px solid #ddd;
+      border-radius: .5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+      z-index: 10;
+      width: 2.5rem; /* عرض ثابت ليتسع للأيقونات واللوحة */
+    }
+    .toolbar--side .btn { font-size: 12px; width: 16px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .toolbar--side .palette { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; font-size: 12px; justify-content: center; }
+    .toolbar--side .palette .muted { display:none; }
+    .toolbar--side .sw { width: 10px; height: 18px; border: 1px solid #ccc; border-radius: 3px; padding: 0; }
+    /* أخفِ الشريط العائم السابق إن وُجد لتجنب التكرار */
+    .toolbar--floating { display: none !important; }
+  </style>
       <h2>محتوى الدرس: {{ lesson.title }}</h2>
 
       <!-- شريط الأدوات -->
-      <div class="toolbar">
+<div class="toolbar toolbar--floating" role="toolbar" aria-label="أدوات التحرير" style="position:fixed; inset-inline-end:1rem; top:1rem; z-index:1040; display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; padding:.25rem .5rem; background:rgba(255,255,255,.9); border:1px solid #ddd; border-radius:.5rem; box-shadow:0 2px 8px rgba(0,0,0,.08); font-size:12px;">
         <button class="btn" type="button" id="m_bold"><strong>B</strong></button>
         <button class="btn" type="button" id="m_ul">• قائمة</button>
         <button class="btn" type="button" id="m_ol">1. تعداد</button>
@@ -72,7 +99,346 @@
         <button class="btn" type="submit" form="contentForm">💾 حفظ</button>
       </div>
 
-      <form method="post" id="contentForm" class="stack" action="">
+<!-- شريط أدوات التحرير الأيقوني في الهامش الأيمن، عمودي ولاصق -->
+<style>
+  /* ضبط إزاحة المحتوى لإتاحة مساحة للشريط الجانبي */
+  .toolbar--side + form#contentForm { margin-right: 8rem; margin-inline-end: 8rem; }
+  /* تصغير الأدوات وضبط عرض الشريط */
+  .toolbar--side { width: 2.5rem; }
+  .toolbar--side .btn { width: 32px; height: 32px; font-size: 12px; }
+  /* جعل الألوان عمودية */
+  .toolbar--side .palette { flex-direction: column; flex-wrap: nowrap; gap: .4rem; }
+  .toolbar--side .sw { width: 20px; height: 20px; }
+  /* زر الميكروفون وحالة التسجيل */
+  .toolbar--side .btn--mic { background:#f8f9fa; border:1px solid #d0d7de; border-radius: 6px; }
+  .toolbar--side .btn--mic.recording { background:#dc3545; color:#fff; border-color:#dc3545; box-shadow: 0 0 0 2px rgba(220,53,69,.2) inset; }
+  .toolbar--side .stt-status { text-align:center; font-size: 11px; color:#666; }
+  .toolbar--side .stt-preview { font-size: 11px; color:#333; max-height: 4.5rem; overflow:auto; direction: rtl; text-align: right; }
+</style>
+<div class="toolbar toolbar--side" role="toolbar" aria-label="أدوات التحرير">
+  <button class="btn btn--mic" type="button" id="m_stt" title="إملاء صوتي (عربي)" aria-label="إملاء صوتي"><span aria-hidden="true">🎤</span></button>
+  <div class="stt-status" aria-live="polite">
+    <div id="stt_state">جاهز</div>
+    <div id="stt_preview" class="stt-preview"></div>
+  </div>
+  <button class="btn" type="button" id="m_bold" title="عريض" aria-label="عريض"><span aria-hidden="true"><b>B</b></span></button>
+  <button class="btn" type="button" id="m_ul" title="قائمة نقطية" aria-label="قائمة نقطية"><span aria-hidden="true">•</span></button>
+  <button class="btn" type="button" id="m_ol" title="تعداد رقمي" aria-label="تعداد رقمي"><span aria-hidden="true">1</span></button>
+
+  <div class="palette" aria-label="ألوان النص">
+    <button class="sw" data-color="#000000" title="أسود" aria-label="أسود" style="background:#000000"></button>
+    <button class="sw" data-color="#d10000" title="أحمر" aria-label="أحمر" style="background:#d10000"></button>
+    <button class="sw" data-color="#0057d1" title="أزرق" aria-label="أزرق" style="background:#0057d1"></button>
+    <button class="sw" data-color="#17823a" title="أخضر" aria-label="أخضر" style="background:#17823a"></button>
+  </div>
+
+  <button class="btn" type="button" id="m_clean" title="تنظيف" aria-label="تنظيف"><span aria-hidden="true">🧹</span></button>
+  <button class="btn" type="submit" form="contentForm" title="حفظ" aria-label="حفظ"><span aria-hidden="true">💾</span></button>
+</div>
+
+<script>
+  // Speech-to-Text (Arabic) using Web Speech API
+  document.addEventListener('DOMContentLoaded', function () {
+    var micBtn = document.getElementById('m_stt');
+    if (!micBtn) return;
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      micBtn.disabled = true;
+      micBtn.title = 'الإملاء الصوتي غير مدعوم في هذا المتصفح';
+      return;
+    }
+
+    var recognition = new SpeechRecognition();
+    recognition.lang = 'ar-SA';
+    recognition.continuous = true;
+    recognition.interimResults = true; // أدخل النص تدريجياً أثناء التحدث
+    recognition.maxAlternatives = 1;
+
+    var active = false;
+
+    function getEditorEl() {
+      // إذا كان هناك عنصر مركّز وهو محرر نصي، استخدمه
+      var a = document.activeElement;
+      if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT' || a.isContentEditable)) return a;
+      // ابحث داخل نموذج المحتوى أولاً
+      var marked = document.querySelector('#contentForm [data-editor]');
+      if (marked) return marked;
+      // حاول اختيار أفضل مرشح داخل النموذج
+      var form = document.getElementById('contentForm') || document;
+      var candidates = Array.from(form.querySelectorAll('textarea, [contenteditable="true"], input[type="text"][name]'));
+      if (!candidates.length) return null;
+      // أعطِ أولوية للاسم/المعرّف الذي يحتوي على content/body/text/html
+      function score(el) {
+        var s = 0;
+        var n = (el.getAttribute('name') || '') + ' ' + (el.id || '') + ' ' + (el.className || '');
+        if (/content|body|text|html/i.test(n)) s += 5;
+        var rect = el.getBoundingClientRect();
+        s += Math.round((rect.width * rect.height) / 10000);
+        if (el.tagName === 'TEXTAREA' || el.isContentEditable) s += 2;
+        return s;
+      }
+      candidates.sort(function(a,b){ return score(b) - score(a); });
+      var best = candidates[0];
+      if (best) best.setAttribute('data-editor','1');
+      return best || null;
+    }
+    // حالة الإملاء الحالية والمكان المستهدف
+    var targetEl = null;
+    var anchorNode = null; // لمحررات contenteditable
+    var committedLen = 0; // طول النص الذي تم إدراجه فعلاً
+
+    function placeAnchorForContentEditable(el) {
+      var sel = window.getSelection();
+      var r = null;
+      if (sel && sel.rangeCount && el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        r = sel.getRangeAt(0).cloneRange();
+      } else {
+        r = document.createRange();
+        r.selectNodeContents(el);
+        r.collapse(false);
+      }
+      anchorNode = document.createElement('span');
+      anchorNode.id = 'stt-anchor-' + Date.now();
+      anchorNode.style.display = 'inline';
+      anchorNode.style.width = '0';
+      anchorNode.style.height = '0';
+      r.insertNode(anchorNode);
+    }
+
+    function cleanupAnchor() {
+      if (anchorNode && anchorNode.parentNode) {
+        anchorNode.parentNode.removeChild(anchorNode);
+      }
+      anchorNode = null;
+    }
+
+    function insertDeltaText(delta) {
+      if (!delta) return;
+      if (!targetEl) return;
+      if (targetEl.isContentEditable) {
+        var textNode = document.createTextNode(delta);
+        if (anchorNode && anchorNode.parentNode) {
+          anchorNode.parentNode.insertBefore(textNode, anchorNode);
+        } else {
+          targetEl.appendChild(textNode);
+        }
+        // حرّك المؤشر لنهاية النص المدخل
+        var sel = window.getSelection();
+        if (sel) {
+          var range = document.createRange();
+          range.setStartAfter(textNode);
+          range.setEndAfter(textNode);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } else if (targetEl.tagName === 'TEXTAREA' || targetEl.tagName === 'INPUT') {
+        var start = targetEl.selectionStart != null ? targetEl.selectionStart : targetEl.value.length;
+        var end = targetEl.selectionEnd != null ? targetEl.selectionEnd : targetEl.value.length;
+        var before = targetEl.value.slice(0, start);
+        var after = targetEl.value.slice(end);
+        targetEl.value = before + delta + after;
+        var caret = before.length + delta.length;
+        targetEl.selectionStart = targetEl.selectionEnd = caret;
+        targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+        committedLen += delta.length;
+        return;
+      }
+      committedLen += delta.length;
+    }
+
+    recognition.onresult = function (event) {
+      // اجمع كل النص الحالي من النتائج
+      var fullText = '';
+      for (var i = 0; i < event.results.length; i++) {
+        var res = event.results[i];
+        var transcript = res[0] && res[0].transcript ? res[0].transcript : '';
+        fullText += transcript + (res.isFinal ? ' ' : '');
+      }
+      // استخرج الزيادة منذ آخر ما تم إدخاله
+      if (fullText.length > committedLen) {
+        var delta = fullText.slice(committedLen);
+        insertDeltaText(delta);
+      }
+      // تحديث المعاينة والحالة
+      try {
+        var stateEl = document.getElementById('stt_state');
+        var prevEl = document.getElementById('stt_preview');
+        if (stateEl) stateEl.textContent = 'يسجّل…';
+        if (prevEl) prevEl.textContent = fullText;
+      } catch(_){}
+    };
+
+    recognition.onerror = function (e) {
+      stop();
+      if (e && e.error) {
+        var msg = '';
+        switch (e.error) {
+          case 'no-speech': msg = 'لم يتم التقاط صوت. حاول التحدث بوضوح.'; break;
+          case 'audio-capture': msg = 'تعذّر الوصول للميكروفون. تحقق من الصلاحيات.'; break;
+          case 'not-allowed': msg = 'تم رفض إذن الميكروفون. امنح الإذن من شريط العنوان.'; break;
+          case 'network': msg = 'مشكلة شبكة. يتطلب التعرف اتصالاً بالإنترنت.'; break;
+          default: msg = 'خطأ في الإملاء الصوتي: ' + e.error; break;
+        }
+        try { console.warn(msg); } catch(_) {}
+        // خيار بسيط لإبلاغ المستخدم
+        if (micBtn) micBtn.title = msg;
+        try {
+          var stateEl = document.getElementById('stt_state');
+          if (stateEl) stateEl.textContent = msg;
+        } catch(_){}
+      }
+    };
+
+    recognition.onend = function () {
+      if (active) {
+        try { recognition.start(); } catch (e) { /* ignore */ }
+      } else {
+        micBtn.classList.remove('recording');
+        micBtn.title = 'إملاء صوتي (عربي)';
+      }
+    };
+
+    function start() {
+      active = true;
+      micBtn.classList.add('recording');
+      micBtn.title = 'قيد التسجيل… اضغط للإيقاف';
+      targetEl = getEditorEl();
+      if (targetEl) {
+        targetEl.focus();
+        if (targetEl.isContentEditable) {
+          placeAnchorForContentEditable(targetEl);
+        }
+      }
+      committedLen = 0;
+      try {
+        var stateEl = document.getElementById('stt_state');
+        if (stateEl) stateEl.textContent = 'جارٍ الاستماع…';
+        var prevEl = document.getElementById('stt_preview');
+        if (prevEl) prevEl.textContent = '';
+      } catch(_){}
+      try { recognition.start(); } catch (e) {
+        // في حال فشل البدء، جرّب تغيير اللغة إلى "ar"
+        try { recognition.lang = 'ar'; recognition.start(); } catch (_) {}
+      }
+    }
+    function stop() {
+      active = false;
+      try { recognition.stop(); } catch (e) { /* ignore */ }
+      micBtn.classList.remove('recording');
+      micBtn.title = 'إملاء صوتي (عربي)';
+      cleanupAnchor();
+      targetEl = null;
+      committedLen = 0;
+      try {
+        var stateEl = document.getElementById('stt_state');
+        if (stateEl) stateEl.textContent = 'متوقف';
+      } catch(_){}
+    }
+
+    // حدد المحرر عند التركيز داخل النموذج
+    document.addEventListener('focusin', function (e) {
+      var form = document.getElementById('contentForm');
+      if (form && form.contains(e.target)) {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.isContentEditable) {
+          e.target.setAttribute('data-editor', '1');
+        }
+      }
+    });
+
+    micBtn.addEventListener('click', function () {
+      if (active) stop(); else start();
+    });
+  });
+</script>
+<!-- مراقبة معاينة STT لإدراج النص في المحرر حتى مع المحررات الغنية -->
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    var preview = document.getElementById('stt_preview');
+    if (!preview) return;
+
+    function smartInsert(text){
+      if (!text) return false;
+      // TinyMCE
+      try {
+        if (window.tinymce && tinymce.activeEditor && !tinymce.activeEditor.destroyed) {
+          tinymce.activeEditor.execCommand('mceInsertContent', false, text);
+          return true;
+        }
+      } catch(_){}
+      // CKEditor 4
+      try {
+        if (window.CKEDITOR && CKEDITOR.instances) {
+          for (var k in CKEDITOR.instances){ var inst = CKEDITOR.instances[k]; if (!inst) continue; try { inst.focus(); } catch(_){} if (typeof inst.insertText === 'function') { inst.insertText(text); return true; } }
+        }
+      } catch(_){}
+      // CKEditor 5 (يحتاج متغير editor)
+      try {
+        if (window.editor && editor.model) {
+          editor.model.change(function(writer){ var pos = editor.model.document.selection.getFirstPosition(); writer.insertText(text, pos); });
+          return true;
+        }
+      } catch(_){}
+      // Quill
+      try {
+        if (window.quill && typeof quill.insertText === 'function') {
+          var range = quill.getSelection(true) || { index: quill.getLength() };
+          quill.insertText(range.index, text);
+          quill.setSelection(range.index + text.length);
+          return true;
+        }
+      } catch(_){}
+      return false;
+    }
+
+    function getEditor(){
+      var a = document.activeElement;
+      if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT' || a.isContentEditable)) return a;
+      var marked = document.querySelector('#contentForm [data-editor]');
+      if (marked) return marked;
+      var form = document.getElementById('contentForm') || document;
+      return form.querySelector('textarea, [contenteditable="true"], input[type="text"]');
+    }
+
+    function insertPlain(el, text){
+      if (!el || !text) return;
+      if (el.isContentEditable) {
+        el.focus();
+        var sel = window.getSelection();
+        var range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+        if (!range || !el.contains(range.commonAncestorContainer)) {
+          range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+          sel.removeAllRanges(); sel.addRange(range);
+        }
+        var node = document.createTextNode(text);
+        range.insertNode(node);
+        range.setStartAfter(node); range.setEndAfter(node);
+        sel.removeAllRanges(); sel.addRange(range);
+      } else if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+        var start = el.selectionStart != null ? el.selectionStart : el.value.length;
+        var end = el.selectionEnd != null ? el.selectionEnd : el.value.length;
+        var before = el.value.slice(0, start), after = el.value.slice(end);
+        el.value = before + text + after;
+        var pos = start + text.length; el.selectionStart = el.selectionEnd = pos;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+
+    var last = '';
+    var obs = new MutationObserver(function(){
+      var cur = preview.textContent || '';
+      if (cur === last) return;
+      if (cur.length < last.length) { last = cur; return; } // تمت إعادة التعيين
+      var delta = cur.slice(last.length);
+      if (delta) {
+        if (!smartInsert(delta)) insertPlain(getEditor(), delta);
+      }
+      last = cur;
+    });
+    obs.observe(preview, { characterData: true, subtree: true, childList: true });
+  });
+</script>
+
+<form method="post" id="contentForm" class="stack" action="">
         {% csrf_token %}
         <input type="hidden" name="form_name" value="content" />
         <!-- حقل النموذج الأصلي مخفي: سيتم نسخ HTML المحرّر له قبل الإرسال -->

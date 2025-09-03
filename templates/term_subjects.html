@@ -176,6 +176,88 @@
     }
   })();
 
-  // (تم إزالة معاينة اليوم بالشرائح بناءً على طلبكم)
+  <!-- تم إزالة معاينة اليوم بالشرائح بناءً على طلبكم -->
+  </script>
+  
+  <!-- جعل البطاقة كلها قابلة للنقر مع إبقاء أزرار وروابط الإجراءات تعمل -->
+  <style>
+    .card { position: relative; }
+    .card > a.card-link { position: absolute; inset: 0; z-index: 1; }
+    /* اجعل رابط العنوان فوق الرابط الممدود ومظهره كالنص */
+    .card .title-row .title-link { position: relative; z-index: 2; color: inherit; text-decoration: none; }
+    .card .title-row .title-link:hover, .card .title-row .title-link:focus { text-decoration: underline; }
+    /* أبقِ روابط الإجراءات فوق الرابط الممدود حتى تبقى قابلة للنقر */
+    .card .actions, .card .actions a,
+    .card .examline, .card .examline a,
+    .card a.btn { position: relative; z-index: 2; }
+
+    /* شريط التقدم */
+    .progress-meta { margin: .4rem 0 .2rem; font-size: .85rem; color: #555; }
+    .progress { height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0%; background-color: #0d6efd; transition: width .3s ease; }
+    .progress-label { margin-top: .25rem; direction: rtl; }
+  </style>
+  <script>
+    // لفّ اسم المنهج داخل <a> يأخذ نفس رابط البطاقة إن لم يكن ملفوفاً مسبقاً
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.card').forEach(function (card) {
+        var mainLink = card.querySelector('a.card-link[href]');
+        var title = card.querySelector('.title-row h3');
+        if (!mainLink || !title) return;
+        // تجاوب مع حالة أن العنوان يحتوي مسبقاً على رابط
+        if (title.querySelector('a')) return;
+        var a = document.createElement('a');
+        a.className = 'title-link';
+        a.href = mainLink.href;
+        a.textContent = (title.textContent || '').trim();
+        // استبدل محتوى العنوان بالرابط
+        while (title.firstChild) title.removeChild(title.firstChild);
+        title.appendChild(a);
+      });
+
+      // استبدال نص "هذا الأسبوع: X/Y" بشريط تقدم يعتمد على عدد الأسابيع التي فيها أسئلة
+      document.querySelectorAll('.card').forEach(function (card) {
+        try {
+          // حاول إيجاد العدد من رابط "الأسئلة الأسبوعية: N"
+          var weeklyLink = card.querySelector('.actions a[href*="/weekly/"]');
+          var weeklyCount = null;
+          if (weeklyLink) {
+            var m = (weeklyLink.textContent || '').match(/(\d+)/);
+            if (m) weeklyCount = parseInt(m[1], 10);
+          }
+
+          // إجمالي الأسابيع: من data-weeks-total إن وُجد وإلا افتراضي 12 (بحسب نطاق الاختبارات 1–12)
+          var totalWeeksAttr = card.getAttribute('data-weeks-total');
+          var totalWeeks = totalWeeksAttr ? parseInt(totalWeeksAttr, 10) : 12;
+          if (!Number.isFinite(totalWeeks) || totalWeeks <= 0) totalWeeks = 12;
+
+          if (weeklyCount == null) return; // لا معلومات كافية
+
+          var percent = Math.max(0, Math.min(100, Math.round((weeklyCount / totalWeeks) * 100)));
+
+          // أخفِ الفقرة القديمة إن كانت موجودة
+          var oldMeta = card.querySelector('.meta');
+          if (oldMeta && /هذا\s*الأسبوع/.test(oldMeta.textContent || '')) {
+            oldMeta.style.display = 'none';
+          }
+
+          // أضف عنصر التقدم قبل .actions أو بعد العنوان
+          var progressWrap = document.createElement('div');
+          progressWrap.className = 'progress-meta';
+          progressWrap.innerHTML = '\n            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + percent + '" aria-label="نسبة التقدم">\n              <div class="progress-bar" style="width:' + percent + '%"></div>\n            </div>\n            <div class="progress-label">التقدم: ' + weeklyCount + ' / ' + totalWeeks + ' أسبوع (' + percent + '%)</div>\n          ';
+
+          var actions = card.querySelector('.actions');
+          if (actions) {
+            card.insertBefore(progressWrap, actions);
+          } else if (oldMeta && oldMeta.parentNode) {
+            oldMeta.parentNode.insertBefore(progressWrap, oldMeta.nextSibling);
+          } else {
+            card.appendChild(progressWrap);
+          }
+        } catch (e) {
+          // تجاهل أي خطأ في بناء شريط التقدم حتى لا يعطل الصفحة
+        }
+      });
+    });
   </script>
 {% endblock %}
