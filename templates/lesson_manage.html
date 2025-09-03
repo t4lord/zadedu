@@ -114,8 +114,13 @@
   .toolbar--side .btn--mic.recording { background:#dc3545; color:#fff; border-color:#dc3545; box-shadow: 0 0 0 2px rgba(220,53,69,.2) inset; }
   .toolbar--side .stt-status { text-align:center; font-size: 11px; color:#666; }
   .toolbar--side .stt-preview { font-size: 11px; color:#333; max-height: 4.5rem; overflow:auto; direction: rtl; text-align: right; }
+  /* دعم التحريك بالسحب */
+  .toolbar--side.user-placed { position: fixed; float: none; left: 16px; top: 16px; right: auto; }
+  .toolbar--side .drag-handle { cursor: move; }
+  .dragging-toolbar { user-select: none; }
 </style>
 <div class="toolbar toolbar--side" role="toolbar" aria-label="أدوات التحرير">
+  <button class="btn drag-handle" type="button" id="m_drag" title="تحريك الشريط" aria-label="تحريك الشريط"><span aria-hidden="true">⠿</span></button>
   <button class="btn btn--mic" type="button" id="m_stt" title="إملاء صوتي (عربي)" aria-label="إملاء صوتي"><span aria-hidden="true">🎤</span></button>
   <div class="stt-status" aria-live="polite">
     <div id="stt_state">جاهز</div>
@@ -415,6 +420,63 @@
     // عند الحفظ: انسخ HTML للمجال المخفي body وأرسل النموذج
     document.getElementById('contentForm')?.addEventListener('submit', () => {
       if (bodyFld) bodyFld.value = editor.innerHTML.trim();
+    });
+  </script>
+  <script>
+    // جعل شريط الأدوات قابلاً للتحريك بالسحب عبر زر المقبض ⠿
+    document.addEventListener('DOMContentLoaded', function(){
+      var tb = document.querySelector('.toolbar--side');
+      var handle = document.getElementById('m_drag');
+      if (!tb || !handle) return;
+
+      var isDragging = false;
+      var offsetX = 0, offsetY = 0;
+
+      function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+      function startDrag(e){
+        isDragging = true;
+        var rect = tb.getBoundingClientRect();
+        offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        tb.classList.add('user-placed');
+        tb.style.width = rect.width + 'px';
+        tb.style.left = rect.left + 'px';
+        tb.style.top = rect.top + 'px';
+        tb.style.right = 'auto';
+        document.body.classList.add('dragging-toolbar');
+        e.preventDefault();
+      }
+
+      function onDrag(e){
+        if (!isDragging) return;
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        var left = clamp(clientX - offsetX, 0, window.innerWidth - tb.offsetWidth);
+        var top = clamp(clientY - offsetY, 0, window.innerHeight - tb.offsetHeight);
+        tb.style.left = left + 'px';
+        tb.style.top = top + 'px';
+      }
+
+      function endDrag(){
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.classList.remove('dragging-toolbar');
+      }
+
+      handle.addEventListener('mousedown', startDrag);
+      window.addEventListener('mousemove', onDrag);
+      window.addEventListener('mouseup', endDrag);
+      // دعم اللمس
+      handle.addEventListener('touchstart', startDrag, { passive: false });
+      window.addEventListener('touchmove', onDrag, { passive: false });
+      window.addEventListener('touchend', endDrag);
+
+      // نقر مزدوج على المقبض لإعادة الوضع الافتراضي
+      handle.addEventListener('dblclick', function(){
+        tb.classList.remove('user-placed');
+        tb.style.left = tb.style.top = tb.style.right = tb.style.width = '';
+      });
     });
   </script>
 {% endblock %}
