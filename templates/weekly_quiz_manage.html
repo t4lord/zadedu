@@ -388,11 +388,6 @@
     </aside>
   </div>
 
-  <!-- Overlay: saving options via fetch -->
-  <div id="savingOverlay" class="saving-overlay" aria-live="polite" aria-busy="true">
-    <div class="saving-box">جاري الحفظ… <span id="savingProgress"></span></div>
-  </div>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -619,7 +614,7 @@
       }
     })();
 
-    // تحقق قبل الإرسال + تخزين خيارات MCQ مؤقتًا
+    // تحقق قبل الإرسال
     const weekNum = "{{ week.number }}";
     function norm(s){ return (s||'').toString().trim(); }
     function normKey(s){ return norm(s).toLowerCase().replace(/\s+/g,' '); }
@@ -644,12 +639,6 @@
         if (!norm(t?.value) || nonEmpty.length < 2 || !['1','2','3'].includes(sel)) {
           e.preventDefault(); alert('للاختيارات: أدخل خيارين على الأقل وحدّد الصحيح.'); return;
         }
-        const payload = { t: normKey(t.value), week: weekNum, options: [
-          {t:norm(c1), ok:(sel==='1')},
-          {t:norm(c2), ok:(sel==='2')},
-          {t:norm(c3), ok:(sel==='3')}
-        ]};
-        localStorage.setItem('pending_mcq_options', JSON.stringify(payload));
       }
     }, true);
 
@@ -664,44 +653,5 @@
       }, true);
     });
 
-    // بعد الرجوع: أضف خيارات MCQ تلقائيًا (بدون نموذج "إضافة خيار")
-    window.addEventListener('DOMContentLoaded', async ()=>{
-      const raw = localStorage.getItem('pending_mcq_options');
-      if (!raw) return;
-      let data; try { data = JSON.parse(raw); } catch { localStorage.removeItem('pending_mcq_options'); return; }
-      if (!data || data.week != weekNum) { localStorage.removeItem('pending_mcq_options'); return; }
-
-      const cards  = [...document.querySelectorAll('.qcard[data-type="MCQ"]')];
-      const target = cards.find(card => (card.getAttribute('data-text')||'') === data.t);
-      const qid    = target?.getAttribute('data-qid');
-      if (!qid) { localStorage.removeItem('pending_mcq_options'); return; }
-
-      function getCookie(name){ const m=document.cookie.match(new RegExp('(^|; )'+name+'=([^;]+)')); return m?decodeURIComponent(m[2]):null; }
-      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
-      const csrf = csrfInput?.value || getCookie('csrftoken');
-
-      const url = window.location.href;
-      const opts=(data.options||[]).map(o=>({text:o.t, ok:!!o.ok, order:9999})).filter(o=>o.text);
-      // عرض مؤشر "جاري الحفظ" وتعطيل الواجهة
-      const overlay = document.getElementById('savingOverlay');
-      const prog = document.getElementById('savingProgress');
-      function setDisabledUI(dis){
-        document.querySelectorAll('button, input, select, textarea').forEach(el=>{ try{ el.disabled = !!dis; }catch{} });
-        document.querySelectorAll('a.btn').forEach(a=>{ if(dis){ a.classList.add('disabled'); a.style.pointerEvents='none'; a.setAttribute('aria-disabled','true'); } else { a.classList.remove('disabled'); a.style.pointerEvents=''; a.removeAttribute('aria-disabled'); } });
-      }
-      if (overlay) overlay.classList.add('saving-overlay--on');
-      setDisabledUI(true);
-      let i = 0; const total = opts.length; if (prog) prog.textContent = `(0/${total})`;
-      for (const o of opts) {
-        const p = new URLSearchParams();
-        p.append('form_name','add_option'); p.append('question_id', qid);
-        p.append('text', o.text); if (o.ok) p.append('is_correct','on');
-        p.append('order','9999'); if (csrf) p.append('csrfmiddlewaretoken', csrf);
-        await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:p.toString(), credentials:'same-origin' });
-        i++; if (prog) prog.textContent = `(${i}/${total})`;
-      }
-      localStorage.removeItem('pending_mcq_options');
-      window.location.reload();
-    });
   </script>
 {% endblock %}

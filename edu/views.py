@@ -503,7 +503,7 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
             q = qform.save(commit=False)
             q.quiz = quiz
             
-            # معالجة correct_bool: تحويل on/off إلى True/False
+            # معالجة correct_bool + خيارات MCQ مباشرة في نفس الطلب لتجنب إعادة التحميل البطيء
             if q.qtype == QuestionType.MCQ:
                 q.correct_bool = None
                 q.correct_text = None
@@ -521,6 +521,30 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
             
             if not qform.errors:
                 q.save()
+
+                # إنشاء خيارات MCQ فورًا بدل التخزين المؤقت في المتصفح
+                if q.qtype == QuestionType.MCQ:
+                    choices = []
+                    correct_idx = request.POST.get('mcq_correct', '').strip()
+                    for idx, field in enumerate(['mcq_choice1', 'mcq_choice2', 'mcq_choice3'], start=1):
+                        txt = (request.POST.get(field) or '').strip()
+                        if not txt:
+                            continue
+                        choices.append(WeeklyChoice(
+                            question=q,
+                            text=txt,
+                            is_correct=(str(idx) == correct_idx),
+                            order=idx,
+                        ))
+
+                    if len(choices) < 2 or not any(c.is_correct for c in choices):
+                        # تراجع عن إنشاء السؤال إن لم تكن البيانات مكتملة
+                        q.delete()
+                        qform.add_error(None, 'للاختيارات: أدخل خيارين على الأقل وحدّد الإجابة الصحيحة.')
+                    else:
+                        WeeklyChoice.objects.bulk_create(choices)
+                
+            if not qform.errors:
                 messages.success(request, 'تم إضافة السؤال.')
                 return redirect(f"{request.path}?week={week_number}")
     else:
