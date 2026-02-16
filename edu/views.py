@@ -484,11 +484,25 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
 
     ensure_weeks_for_term(term)
 
+    # اختيار الأسبوع: إذا لم يُحدَّد، انتقل تلقائيًا للأسبوع التالي بعد آخر أسبوع فيه أسئلة
+    user_week_param = request.GET.get('week')
     try:
-        week_number = int(request.GET.get('week', '1'))
+        week_number = int(user_week_param) if user_week_param else None
     except ValueError:
-        week_number = 1
-    week_number = max(1, min(WEEKS_PER_TERM, week_number))
+        week_number = None
+
+    if week_number is None:
+        last_week_with_questions = (
+            WeeklyQuiz.objects
+            .filter(offering=offering, questions__isnull=False)
+            .values_list('week__number', flat=True)
+            .order_by('-week__number')
+            .first()
+        )
+        next_week = (last_week_with_questions or 0) + 1
+        week_number = max(1, min(WEEKS_PER_TERM, next_week))
+    else:
+        week_number = max(1, min(WEEKS_PER_TERM, week_number))
 
     week = Week.objects.filter(term=term, number=week_number).first() or Week.objects.create(term=term, number=week_number)
 
