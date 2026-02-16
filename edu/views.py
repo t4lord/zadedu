@@ -291,7 +291,7 @@ def subjects_grid_view(request, term_id):
             expected_sessions=Count('schedules__weekday', distinct=True),
             weekly_done_count=Count('weekly_quizzes__questions', filter=Q(weekly_quizzes__week__number=progress_week), distinct=True),
             is_today=Exists(schedules_today),
-            weekly_questions_count=Count('weekly_quizzes__questions', distinct=True),  # ← هذا السطر الجديد
+            weeks_done=Count('weekly_quizzes__week__number', filter=Q(weekly_quizzes__questions__isnull=False), distinct=True),
         )
         .order_by('subject__name')
         .distinct()
@@ -314,6 +314,7 @@ def subjects_grid_view(request, term_id):
         'has_any_schedule': has_any_schedule,
         'AR_DAYS': AR_DAYS,
         'progress_week': progress_week,
+        'weeks_total': WEEKS_PER_TERM,
         'debug': request.GET.get('debug') in {'1','true','yes','on'},
     })
 

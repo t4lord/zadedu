@@ -77,7 +77,9 @@
         class="card {% if off.is_today %}is-today{% endif %}"
         data-subject="{{ off.subject.name|escape }}"
         data-is-today="{{ off.is_today|yesno:'1,0' }}"
-        data-sched="{% if off.sched_days %}{{ off.sched_days|join:',' }}{% else %}{% endif %}" >
+        data-sched="{% if off.sched_days %}{{ off.sched_days|join:',' }}{% else %}{% endif %}"
+        data-weeks-done="{{ off.weeks_done|default:0 }}"
+        data-weeks-total="{{ weeks_total|default:12 }}" >
 
         <!-- الرابط الممدود: يجعل البطاقة كلها قابلة للنقر لفتح المنهج -->
         <a class="card-link" href="{% url 'lessons_list' term.id off.subject.id %}" aria-label="فتح منهج {{ off.subject.name }}"></a>
@@ -88,12 +90,7 @@
           <h3 style="margin:.2rem 0">{{ off.subject.name }}</h3>
         </div>
         <p class="meta">
-          هذا الأسبوع: <strong>{{ off.weekly_done_count|default:0 }}</strong>/<strong>{{ off.expected_sessions|default:off.sched_days|length|default:0 }}</strong>
-          {% if off.expected_sessions|default:0 == 0 %}
-            <span class="badge" title="بدون جدول أسبوعي">غير مجدول</span>
-          {% elif off.weekly_done_count|default:0 >= off.expected_sessions|default:0 and off.expected_sessions|default:0 > 0 %}
-            <span class="badge" title="اكتمل هذا الأسبوع">مكتمل</span>
-          {% endif %}
+          التقدم: <strong>{{ off.weeks_done|default:0 }}</strong> / <strong>{{ weeks_total|default:12 }}</strong> أسبوع
         </p>
 
         {% if debug %}
@@ -110,7 +107,7 @@
 
         <div class="actions">
           <a class="btn" href="{% url 'weekly_quiz_manage' term.id off.subject.id %}">
-            الأسئلة الأسبوعية: {{ off.weekly_questions_count|default:0 }}
+            إدارة الأسئلة الأسبوعية
           </a>
 
           <div class="examline" role="group" aria-label="الاختبارات">
@@ -154,6 +151,8 @@
           const serverIsToday = card.getAttribute('data-is-today') === '1';
           const classIsToday = card.classList.contains('is-today');
           const browserThinksToday = weekdayDb && schedDays.includes(weekdayDb);
+          const weeksDone = parseInt(card.getAttribute('data-weeks-done') || '0', 10);
+          const weeksTotal = parseInt(card.getAttribute('data-weeks-total') || '12', 10);
 
           rows.push({
             '#': idx + 1,
@@ -162,7 +161,9 @@
             weekday_db: weekdayDb || '(empty)',
             server_is_today: serverIsToday,
             class_is_today: classIsToday,
-            browser_thinks_today: browserThinksToday
+            browser_thinks_today: browserThinksToday,
+            weeks_done: weeksDone,
+            weeks_total: weeksTotal
           });
         });
 
@@ -215,36 +216,26 @@
         title.appendChild(a);
       });
 
-      // استبدال نص "هذا الأسبوع: X/Y" بشريط تقدم يعتمد على عدد الأسابيع التي فيها أسئلة
+      // استبدال نص التقدم بشريط يعتمد على عدد الأسابيع التي فيها أسئلة
       document.querySelectorAll('.card').forEach(function (card) {
         try {
-          // حاول إيجاد العدد من رابط "الأسئلة الأسبوعية: N"
-          var weeklyLink = card.querySelector('.actions a[href*="/weekly/"]');
-          var weeklyCount = null;
-          if (weeklyLink) {
-            var m = (weeklyLink.textContent || '').match(/(\d+)/);
-            if (m) weeklyCount = parseInt(m[1], 10);
-          }
-
-          // إجمالي الأسابيع: من data-weeks-total إن وُجد وإلا افتراضي 12 (بحسب نطاق الاختبارات 1–12)
-          var totalWeeksAttr = card.getAttribute('data-weeks-total');
-          var totalWeeks = totalWeeksAttr ? parseInt(totalWeeksAttr, 10) : 12;
+          var weeksDone = parseInt(card.getAttribute('data-weeks-done') || '0', 10);
+          var totalWeeks = parseInt(card.getAttribute('data-weeks-total') || '12', 10);
           if (!Number.isFinite(totalWeeks) || totalWeeks <= 0) totalWeeks = 12;
+          if (!Number.isFinite(weeksDone) || weeksDone < 0) weeksDone = 0;
 
-          if (weeklyCount == null) return; // لا معلومات كافية
-
-          var percent = Math.max(0, Math.min(100, Math.round((weeklyCount / totalWeeks) * 100)));
+          var percent = Math.max(0, Math.min(100, Math.round((weeksDone / totalWeeks) * 100)));
 
           // أخفِ الفقرة القديمة إن كانت موجودة
           var oldMeta = card.querySelector('.meta');
-          if (oldMeta && /هذا\s*الأسبوع/.test(oldMeta.textContent || '')) {
+          if (oldMeta) {
             oldMeta.style.display = 'none';
           }
 
           // أضف عنصر التقدم قبل .actions أو بعد العنوان
           var progressWrap = document.createElement('div');
           progressWrap.className = 'progress-meta';
-          progressWrap.innerHTML = '\n            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + percent + '" aria-label="نسبة التقدم">\n              <div class="progress-bar" style="width:' + percent + '%"></div>\n            </div>\n            <div class="progress-label">التقدم: ' + weeklyCount + ' / ' + totalWeeks + ' أسبوع (' + percent + '%)</div>\n          ';
+          progressWrap.innerHTML = '\n            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + percent + '" aria-label="نسبة التقدم">\n              <div class="progress-bar" style="width:' + percent + '%"></div>\n            </div>\n            <div class="progress-label">التقدم: ' + weeksDone + ' / ' + totalWeeks + ' أسبوع (' + percent + '%)</div>\n          ';
 
           var actions = card.querySelector('.actions');
           if (actions) {
