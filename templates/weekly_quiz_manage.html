@@ -3,7 +3,9 @@
 {% block extra_css %}
   <style>
     :root{
-      --bg:#fff; --ink:#111; --muted:#666; --bd:#e7e7e7;
+      --bg:#f9f6f2; /* بيج فاتح جدًا */
+      --ink:#111; --muted:#666; --bd:#e7e7e7;
+      --card-bg:#fff; /* البلوكات الداخلية بيضاء صافية */
       --badge:#eef; --badgebd:#dde;
       --label:#f4f8ff; --labelbd:#bcd;
       --chip:#f6f7fb; --chipbd:#dfe6ff;
@@ -13,7 +15,7 @@
     .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
     .split{display:grid; gap:1rem; grid-template-columns:1fr; margin-top:1rem}
     @media(min-width:980px){ .split{grid-template-columns:1.25fr .75fr} }
-    .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:#fff}
+    .card{border:1px solid var(--bd); border-radius:14px; padding:1rem; background:var(--card-bg)}
     .badge{display:inline-block; background:var(--badge); border:1px solid var(--badgebd); padding:.25rem .6rem; border-radius:8px; font-size:.9rem; margin-inline-end:.25rem}
     .btn{padding:.45rem .75rem; border-radius:10px; border:1px solid #ccc; background:#fff; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:.35rem}
     .btn:hover{background:#f7f7f7}
@@ -24,6 +26,25 @@
     h2{margin:0 0 .6rem 0; font-size:1.06rem}
     .muted{color:var(--muted)}
     .toolbar{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+    /* عرض الشريط في صف واحد: لا نريد التفاف العناصر هنا */
+      .toolbar{display:flex; gap:.5rem; flex-wrap:nowrap; align-items:center; overflow:hidden}
+      /* عرض أزرار التنقل واسم الأسبوع كما في التصميم */
+      .wkbtn, .wknum { display: inline-flex; }
+      /* حاوية عناصر الشريط: أجزاء قابلة للتمدد/الانكماش */
+      .toolbar > .row, .toolbar > input, .toolbar > .weekctrl, .toolbar > .row#typeFilters, .toolbar > .week-select{ flex: 0 0 auto; display:flex; align-items:center; gap:.45rem }
+      /* مربع البحث يتوسع ولكنه يظل في نفس السطر */
+      #qSearch{ flex: 1 1 240px; min-width:140px; max-width:640px; margin-left:0 }
+      /* اجعل أزرار الفلترة لا تلتهم المساحة */
+      #typeFilters{ flex: 0 0 auto; }
+      #typeFilters .chip{ white-space:nowrap }
+      /* اجعل تسمية + القائمة في سطر واحد دائمًا */
+      .week-select{ display:flex; align-items:center; gap:.4rem; white-space:nowrap }
+      #weekSelect{ flex:0 0 auto; min-width:120px; max-width:160px }
+      /* زر الرجوع صغير ويجلس داخل الشريط */
+      .back-btn{ padding:.35rem .6rem; border-radius:10px; font-size:.95rem; border:1px solid #ddd; background:#fff }
+      .toolbar .back-btn{ flex:0 0 auto }
+      /* قلل الهوامش داخل الشريط لتقليل التفاف العناصر */
+      .toolbar .row{ margin:0; }
     .chip{border:1px solid var(--chipbd); background:var(--chip); border-radius:999px; padding:.28rem .7rem; cursor:pointer; font-size:.92rem}
     .chip.active{background:#eaf1ff; border-color:#aac7ff}
 
@@ -32,9 +53,12 @@
     .qcard{
       position:relative;
       border:1px solid var(--bd); border-radius:14px; padding:1rem;
-      background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.03);
+      background:var(--card-bg); box-shadow:0 1px 0 rgba(0,0,0,.03);
       border-inline-start:8px solid transparent;
     }
+
+    /* اجعل البطاقة قابلة للنقر عندما تكون مطوية */
+    .qcard:not(.expanded){ cursor: pointer; }
     .qcard--mcq{border-inline-start-color:var(--mcq); background:
       linear-gradient(90deg, rgba(127,176,255,.10) 0%, transparent 38%)}
     .qcard--tf{border-inline-start-color:var(--tf); background:
@@ -52,6 +76,20 @@
     .optedit{display:none; margin-top:.35rem}
     .optedit .inp{min-width:220px}
     .qedit{display:none; margin-top:.6rem; border-top:1px dashed var(--bd); padding-top:.6rem}
+
+    /* Collapse behavior: show only summary by default */
+    .qcard .qtitle, .qcard .opts, .qcard .qview, .qcard .qedit { display: none; }
+    /* أخفِ رأس البطاقة (أيقونات التعديل/الحذف، نوع السؤال، رقم السؤال) في حالة الطي */
+    .qcard .qhead { display: none; }
+    .qcard.expanded .qtitle, .qcard.expanded .opts, .qcard.expanded .qview { display: block; }
+    .qcard.expanded .qhead { display: flex; }
+    /* عند التوسيع نخفف مُلخّص السؤال لئلا يتكرر نص السؤال بالكامل */
+    .qcard.expanded .qsummary { display: none; }
+    .qsummary{cursor:pointer; padding:.45rem 0; font-weight:700; color:var(--ink);}
+    .qsummary small{color:var(--muted); margin-left:.5rem; font-weight:600}
+    .qsummary .qicon{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#f3f7ff; border:1px solid #e0e8ff; margin-inline-end:.6rem; font-size:14px}
+    .qsummary .qsummary-text{vertical-align:middle}
+    .tf-correct-text{margin-inline-start:.5rem; color:var(--muted); font-style:italic}
 
     /* تمييز الصحيح */
     .opt--correct{background:#e9f9ee; border-color:#bfe8c8}
@@ -106,37 +144,30 @@
       <span class="badge">المادة: {{ subject.name }}</span>
       <span class="badge">الأسبوع: {{ week.number }}</span>
     </div>
-    <div class="row">
-      <a class="btn" href="{% url 'subjects_grid' term.id %}">⬅ رجوع للمواد</a>
-    </div>
   </div>
 
-  <h1>الأسئلة الأسبوعية — {{ subject.name }}</h1>
+  <!-- عنوان الصفحة أُزيل حسب المطلب: عرض مُدمج للشريط العلوي فقط -->
 
   <div class="card">
     <div class="toolbar" style="width:100%">
-      <div class="weekctrl" data-weeks="{{ WEEKS_PER_TERM }}">
-        <button class="wkbtn" id="weekPrev" type="button" aria-label="الأسبوع السابق">◀</button>
-        <div class="wknum">أسبوع <span id="weekNum">{{ week.number }}</span></div>
-        <button class="wkbtn" id="weekNext" type="button" aria-label="الأسبوع التالي">▶</button>
-      </div>
+      <a class="btn back-btn" href="{% url 'subjects_grid' term.id %}">⬅ رجوع للمواد</a>
+      <!-- week navigation removed: using dropdown only -->
 
-      <div class="row" style="margin-inline-start:.6rem">
-        <label for="weekSelect" class="muted">انتقال سريع:</label>
-        <select id="weekSelect" class="inp wkselect" aria-label="اختيار أسبوع">
+      <select id="weekSelect" class="inp wkselect" aria-label="اختيار أسبوع">
+        <optgroup label="انتقال سريع:">
           {% for w in weeks %}
             <option value="{{ w.number }}" {% if w.number == week.number %}selected{% endif %}>الأسبوع {{ w.number }}</option>
           {% endfor %}
-        </select>
-      </div>
+        </optgroup>
+      </select>
 
-      <div class="row" id="typeFilters" aria-label="فلترة النوع" style="margin-inline-start:auto">
+      <div class="row" id="typeFilters" aria-label="فلترة النوع" style="margin-inline-start:8px">
         <button class="chip active" data-type="ALL">الكل</button>
         <button class="chip" data-type="MCQ">اختيارات</button>
         <button class="chip" data-type="TF">صح/خطأ</button>
       </div>
 
-      <input id="qSearch" class="inp" style="min-width:240px" type="search" placeholder="ابحث داخل نص السؤال…">
+      <input id="qSearch" class="inp" type="search" placeholder="ابحث داخل نص السؤال…">
     </div>
   </div>
 
@@ -165,12 +196,18 @@
                 </div>
               </div>
 
-              <div class="qtitle">{{ q.text }}</div>
+              <div class="qsummary" role="button" tabindex="0" aria-expanded="false">
+                <span class="qicon" aria-hidden="true">
+                  {% if q.qtype == QuestionType.MCQ %}🔘{% elif q.qtype == QuestionType.TF %}✔✖{% else %}✏️{% endif %}
+                </span>
+                <span class="qsummary-text">{{ q.text|striptags|truncatechars:120 }}</span>
+              </div>
 
               {% if q.qtype == QuestionType.MCQ %}
+                <div class="qtitle">#{{ q.id }} — {{ q.text|safe }}</div>
                 <!-- قائمة الخيارات: بدون أزرار في رأس كل خيار، الصحيح بخلفية -->
                 <div class="opts">
-                  {% for opt in q.choices.all %}
+                  {% for opt in q.choices_list %}
                     <div class="opt {% if opt.is_correct %}opt--correct{% endif %}" id="opt-{{ opt.id }}">
                       <div class="opthdr">
                         <div><strong>{{ opt.text }}</strong></div>
@@ -188,6 +225,7 @@
                             <input type="checkbox" name="is_correct" {% if opt.is_correct %}checked{% endif %}>
                           </label>
                           <button class="btn" type="submit">💾 حفظ</button>
+                          <button type="button" class="btn cancel-edit" title="إلغاء التعديل">✖ إلغاء</button>
                         </form>
                         <small class="muted">عند تعيين خيار كصحيح، سيُلغى التعيين عن غيره تلقائيًا.</small>
                       </div>
@@ -207,6 +245,7 @@
                     <input type="hidden" name="order" value="{{ q.order|default:0 }}"/>
                     <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
                     <button class="btn" type="submit">💾 حفظ السؤال</button>
+                    <button type="button" class="btn cancel-edit" title="إلغاء التعديل">✖ إلغاء</button>
                   </form>
                 </div>
 
@@ -214,11 +253,20 @@
 
                 {# عرض (قراءة) — لا حفظ هنا، الصحيح ملوّن بدون رموز #}
                 <div class="qview" id="qview-{{ q.id }}">
-                  <div class="seg" aria-label="الإجابة الصحيحة" style="margin-bottom:.5rem">
-                    <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" disabled>صح</button>
-                    <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" disabled>خطأ</button>
+                  <div class="qtitle" style="margin-bottom:.5rem">#{{ q.id }} — {{ q.text|safe }}</div>
+                  <div class="seg" aria-label="الإجابة الصحيحة" style="margin-top:0.25rem">
+                    {% if q.correct_bool is True %}
+                      <button type="button" class="seg__btn ok active" disabled>صح</button>
+                    {% elif q.correct_bool is False %}
+                      <button type="button" class="seg__btn active" disabled>خطأ</button>
+                      {% if q.correct_text %}
+                        <span class="tf-correct-text">— {{ q.correct_text }}</span>
+                      {% endif %}
+                    {% else %}
+                      <button type="button" class="seg__btn ok" disabled>صح</button>
+                      <button type="button" class="seg__btn" disabled>خطأ</button>
+                    {% endif %}
                   </div>
-                  <div class="qtitle" style="margin-top:.4rem">{{ q.text }}</div>
                 </div>
 
                 {# تعديل (مخفي افتراضياً) — يظهر عند الضغط على ✏️ من رأس البطاقة #}
@@ -231,15 +279,22 @@
                     <input type="hidden" name="order" value="{{ q.order|default:0 }}">
                     <input type="hidden" name="correct_bool" id="cb-{{ q.id }}" value="{% if q.correct_bool is True %}2{% elif q.correct_bool is False %}3{% else %}{% endif %}">
 
-                    <div class="seg" aria-label="الإجابة الصحيحة">
+                    <div style="margin-bottom:.4rem; color:var(--muted);">رقم السؤال: #{{ q.id }}</div>
+                    <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
+
+                    <div class="seg" aria-label="الإجابة الصحيحة" style="margin-inline-start:0.5rem">
                       <button type="button" class="seg__btn ok {% if q.correct_bool is True %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="2">صح</button>
                       <button type="button" class="seg__btn {% if q.correct_bool is False %}active{% endif %}" data-target="#cb-{{ q.id }}" data-val="3">خطأ</button>
                     </div>
 
-                    <textarea name="text" class="inp" rows="2" placeholder="نص السؤال" style="flex:1">{{ q.text }}</textarea>
+                    <div id="editCorrectText-{{ q.id }}" style="display:{% if q.correct_bool is False %}block{% else %}none{% endif %}; margin-top:.45rem">
+                      <label>الاجابة الصحيحة (اكتب الإجابة الصحيحة إذا اخترت «خطأ»)</label>
+                      <input class="inp" name="correct_text" placeholder="اكتب الإجابة الصحيحة هنا" value="{{ q.correct_text }}">
+                    </div>
 
                     <!-- حفظ فقط عند التعديل -->
                     <button class="btn" type="submit" title="حفظ">💾 حفظ</button>
+                    <button type="button" class="btn cancel-edit" title="إلغاء التعديل">✖ إلغاء</button>
                   </form>
                 </div>
 
@@ -278,6 +333,10 @@
             <div class="seg">
               <button type="button" class="seg__btn ok" data-target="#addCorrectBool" data-val="2">صح</button>
               <button type="button" class="seg__btn" data-target="#addCorrectBool" data-val="3">خطأ</button>
+            </div>
+            <div id="addCorrectText" style="display:none; margin-top:.45rem">
+              <label>الاجابة الصحيحة (اكتب الإجابة الصحيحة إذا اخترت «خطأ»)</label>
+              <input class="inp" name="correct_text" placeholder="اكتب الإجابة الصحيحة هنا">
             </div>
           </div>
         </div>
@@ -360,6 +419,27 @@
       });
     });
 
+    // ملخص السؤال: طي/فتح التفاصيل عند النقر (يعرض فقط السؤال ورقمه افتراضياً)
+    document.querySelectorAll('.qsummary').forEach(sum=>{
+      sum.addEventListener('click', (e)=>{
+        const card = sum.closest('.qcard'); if(!card) return;
+        const expanded = card.classList.toggle('expanded');
+        sum.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+      sum.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); sum.click(); } });
+    });
+
+    // سماع نقرات على البطاقة نفسها لتمكين الطي/الفتح عند النقر الثاني.
+    document.querySelectorAll('.qcard').forEach(card=>{
+      card.addEventListener('click', (e)=>{
+        // لا نُفعل الطي إذا كان الهدف تفعيليًا (زر/رابط/حقل إدخال/نموذج)
+        if (e.target.closest('button, a, input, textarea, select, form')) return;
+        // بدل حالة الطي
+        const expanded = card.classList.toggle('expanded');
+        const sum = card.querySelector('.qsummary'); if(sum) sum.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+    });
+
     // فلترة + بحث
     const chips = document.querySelectorAll('#typeFilters .chip');
     const list  = document.getElementById('qList');
@@ -430,6 +510,62 @@
     document.querySelectorAll('form[data-tf]').forEach(f=>bindSegToHidden(f));
     const tfWrap = document.getElementById('tfWrap'); if (tfWrap) bindSegToHidden(tfWrap);
 
+    // لحقول التحرير: إظهار/إخفاء حقل النص عند اختيار "خطأ" داخل نموذج التحرير
+    document.querySelectorAll('form[data-tf]').forEach(f=>{
+      const hid = f.querySelector('input[name="correct_bool"]');
+      const qid = f.getAttribute('data-tf');
+      const textWrap = document.getElementById('editCorrectText-' + qid);
+      if (!hid || !textWrap) return;
+      // تهيئة الحالة الأولية
+      (function(){ if (hid.value === '3') { textWrap.style.display=''; const inp = textWrap.querySelector('input'); if(inp) inp.setAttribute('required','required'); } else { textWrap.style.display='none'; const inp = textWrap.querySelector('input'); if(inp){ inp.removeAttribute('required'); } }})();
+      // ربط أزرار
+      f.querySelectorAll('.seg__btn[data-val]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const v = btn.getAttribute('data-val');
+          if (v === '3') { textWrap.style.display=''; const inp = textWrap.querySelector('input'); if(inp) inp.setAttribute('required','required'); }
+          else { textWrap.style.display='none'; const inp = textWrap.querySelector('input'); if(inp){ inp.removeAttribute('required'); inp.value=''; } }
+        });
+      });
+    });
+
+    // إلغاء التعديل: يخفي محرر الخيار/السؤال دون إرسال النموذج
+    document.querySelectorAll('.cancel-edit').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const form = btn.closest('form');
+        const optedit = btn.closest('.optedit');
+        const qedit = btn.closest('.qedit');
+        // أخفِ المحرّر القريب
+        if (optedit) optedit.style.display = 'none';
+        if (qedit) {
+          qedit.style.display = 'none';
+          // وأخفِ محرّرات الخيارات داخل نفس البطاقة إن وُجدت
+          const card = btn.closest('.qcard');
+          if (card) card.querySelectorAll('.optedit').forEach(o=>o.style.display='none');
+        }
+        // أزل سمات required من الحقول داخل النموذج المخفي لتجنّب مشاكل تحقق لاحقًا
+        if (form) {
+          form.querySelectorAll('[required]').forEach(i=>i.removeAttribute('required'));
+        }
+      });
+    });
+
+    // عند إضافة سؤال TF: إظهار حقل النص عند اختيار "خطأ"
+    const addCorrectText = document.getElementById('addCorrectText');
+    if (tfWrap && addCorrectText) {
+      tfWrap.querySelectorAll('.seg__btn[data-val]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const v = btn.getAttribute('data-val');
+          if (v === '3') {
+            addCorrectText.style.display = '';
+            const inp = addCorrectText.querySelector('input'); if (inp) inp.setAttribute('required','required');
+          } else {
+            addCorrectText.style.display = 'none';
+            const inp = addCorrectText.querySelector('input'); if (inp) { inp.removeAttribute('required'); inp.value = ''; }
+          }
+        });
+      });
+    }
+
     // نوع السؤال + متطلبات MCQ
     const addForm        = document.getElementById('addForm');
     const qtypeSeg       = document.getElementById('qtypeSeg');
@@ -488,13 +624,14 @@
     function norm(s){ return (s||'').toString().trim(); }
     function normKey(s){ return norm(s).toLowerCase().replace(/\s+/g,' '); }
 
-    // تحويل 2/3 → True/False في إضافة TF
+    // تحويل 2/3 → on/off في إضافة TF
     addForm?.addEventListener('submit', (e)=>{
       if (qtypeHidden.value === 'TF') {
         setMCQRequirements(false);
         const vRaw = addCorrectBool?.value;
         if (vRaw !== '2' && vRaw !== '3') { e.preventDefault(); alert('رجاءً اختر «صح» أو «خطأ».'); return; }
-        addCorrectBool.value = (vRaw === '2') ? 'True' : 'False';
+        // التحويل إلى on/off بدلاً من نصوص حرفية
+        addCorrectBool.value = (vRaw === '2') ? 'on' : 'off';
         localStorage.removeItem('pending_mcq_options');
       } else {
         setMCQRequirements(true);
@@ -516,14 +653,14 @@
       }
     }, true);
 
-    // تحويل 2/3 → True/False في تحرير TF
+    // تحويل 2/3 → on/off في تحرير TF
     document.querySelectorAll('form[data-tf]').forEach(f=>{
       f.addEventListener('submit', ()=>{
         const hid = f.querySelector('input[name="correct_bool"]');
         if (!hid) return;
         const vRaw = hid.value;
-        if (vRaw === '2') hid.value = 'True';
-        else if (vRaw === '3') hid.value = 'False';
+        if (vRaw === '2') hid.value = 'on';
+        else if (vRaw === '3') hid.value = 'off';
       }, true);
     });
 

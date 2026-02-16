@@ -183,6 +183,8 @@ class WeeklyQuestion(models.Model):
     qtype = models.CharField(max_length=3, choices=QuestionType.choices, default=QuestionType.MCQ)
     # لـ TF فقط:
     correct_bool = models.BooleanField(null=True, blank=True)
+    # في حال كانت الإجابة "خطأ" يمكن كتابة الإجابة الصحيحة نصيًا
+    correct_text = models.CharField(max_length=255, null=True, blank=True)
     order = models.PositiveSmallIntegerField(default=0)
     class Meta:
         ordering = ['order', 'id']

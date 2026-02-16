@@ -502,11 +502,23 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
         if qform.is_valid():
             q = qform.save(commit=False)
             q.quiz = quiz
-            # ضمان صحة correct_bool: لا يُستخدم إلا مع TF
-            if q.qtype == QuestionType.TF and q.correct_bool is None:
-                qform.add_error('correct_bool', 'اختر صح أو خطأ.')
-            elif q.qtype == QuestionType.MCQ:
+            
+            # معالجة correct_bool: تحويل on/off إلى True/False
+            if q.qtype == QuestionType.MCQ:
                 q.correct_bool = None
+                q.correct_text = None
+            elif q.qtype == QuestionType.TF:
+                cb_raw = request.POST.get('correct_bool', '').strip().lower()
+                if cb_raw == 'on':
+                    q.correct_bool = True
+                    q.correct_text = None
+                elif cb_raw == 'off':
+                    q.correct_bool = False
+                    # احفظ النص إذا وُجد (حقل اختياري)
+                    q.correct_text = request.POST.get('correct_text', '').strip() or None
+                else:
+                    qform.add_error('correct_bool', 'اختر صح أو خطأ.')
+            
             if not qform.errors:
                 q.save()
                 messages.success(request, 'تم إضافة السؤال.')
@@ -521,10 +533,22 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
         qedit = WeeklyQuestionForm(request.POST, instance=qobj)
         if qedit.is_valid():
             q = qedit.save(commit=False)
-            if q.qtype == QuestionType.TF and q.correct_bool is None:
-                qedit.add_error('correct_bool', 'اختر صح أو خطأ.')
-            elif q.qtype == QuestionType.MCQ:
+            
+            # معالجة correct_bool: تحويل on/off إلى True/False  
+            if q.qtype == QuestionType.MCQ:
                 q.correct_bool = None
+                q.correct_text = None
+            elif q.qtype == QuestionType.TF:
+                cb_raw = request.POST.get('correct_bool', '').strip().lower()
+                if cb_raw == 'on':
+                    q.correct_bool = True
+                    q.correct_text = None
+                elif cb_raw == 'off':
+                    q.correct_bool = False
+                    q.correct_text = request.POST.get('correct_text', '').strip() or None
+                else:
+                    q.correct_bool = None
+            
             if not qedit.errors:
                 q.save()
                 messages.success(request, 'تم تعديل السؤال.')
@@ -572,11 +596,16 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
         return redirect(f"{request.path}?week={week_number}")
 
     # ============ بيانات العرض ============
-    questions = (
-        quiz.questions
-        .prefetch_related('choices')
-        .order_by('order', 'id')
-    )
+    # جلب الأسئلة بدون التكرار
+    questions = quiz.questions.order_by('order', 'id')
+    
+    # تحميل الخيارات بشكل منفصل لتجنب التكرار
+    questions_dict = {}
+    for q in questions:
+        questions_dict[q.id] = q
+        q.choices_list = list(q.choices.order_by('order', 'id'))
+    
+    questions = list(questions_dict.values())
     weeks = list(term.weeks.order_by('number'))
 
     return render(request, 'weekly_quiz_manage.html', {
@@ -591,8 +620,6 @@ def weekly_quiz_manage_view(request, term_id, subject_id):
         'QuestionType': QuestionType,
         'WEEKS_PER_TERM': WEEKS_PER_TERM,
     })
-
-from django.db.models import Prefetch
 
 def exam_take_view(request, term_id: int, subject_id: int, scope: str):
     offering = get_offering_or_404(request, term_id, subject_id)
